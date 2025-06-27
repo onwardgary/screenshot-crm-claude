@@ -38,12 +38,15 @@ export default function LeadArchivePage() {
             <h1 className="text-xl font-semibold text-slate-900">Screenshot CRM</h1>
           </Link>
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-1">
+            <div className="flex items-center gap-1">
               <Button asChild variant="outline" size="sm">
                 <Link href="/leads/inbox">Inbox</Link>
               </Button>
               <Button asChild variant="outline" size="sm">
                 <Link href="/leads/pipeline">Pipeline</Link>
+              </Button>
+              <Button asChild variant="default" size="sm" className="bg-slate-100 text-slate-800 hover:bg-slate-200">
+                <Link href="/leads/archive">Archive</Link>
               </Button>
             </div>
             <Button asChild className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700">

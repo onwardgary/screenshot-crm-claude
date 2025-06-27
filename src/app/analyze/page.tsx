@@ -22,7 +22,6 @@ interface ExtractedLead {
   lastMessage?: string
   lastMessageFrom?: string
   timestamp?: string
-  conversationSummary?: string
   leadScore?: number
   notes?: string
   skip?: boolean
@@ -36,6 +35,7 @@ interface AnalysisResult {
   totalNewLeads?: number
   totalDuplicates?: number
   totalUpdated?: number
+  screenshotId?: number
 }
 
 function AnalyzePageContent() {
@@ -117,7 +117,6 @@ function AnalyzePageContent() {
           lastMessage: lead.lastMessage,
           lastMessageFrom: lead.lastMessageFrom,
           timestamp: lead.timestamp,
-          conversationSummary: lead.conversationSummary,
           leadScore: lead.leadScore,
           notes: lead.notes
         }))
@@ -128,7 +127,10 @@ function AnalyzePageContent() {
         const response = await fetch('/api/leads', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(lead)
+          body: JSON.stringify({
+            ...lead,
+            screenshotId: analysisData?.screenshotId
+          })
         })
         
         if (!response.ok) {
@@ -406,18 +408,6 @@ function AnalyzePageContent() {
                         <textarea
                           value={lead.lastMessage || ''}
                           onChange={(e) => updateLead(lead.id, 'lastMessage', e.target.value)}
-                          rows={2}
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-sm"
-                        />
-                      </div>
-                      
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Conversation Summary
-                        </label>
-                        <textarea
-                          value={lead.conversationSummary || ''}
-                          onChange={(e) => updateLead(lead.id, 'conversationSummary', e.target.value)}
                           rows={2}
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-sm"
                         />

@@ -38,9 +38,12 @@ export default function LeadPipelinePage() {
             <h1 className="text-xl font-semibold text-slate-900">Screenshot CRM</h1>
           </Link>
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-1">
+            <div className="flex items-center gap-1">
               <Button asChild variant="outline" size="sm">
                 <Link href="/leads/inbox">Inbox</Link>
+              </Button>
+              <Button asChild variant="default" size="sm" className="bg-green-100 text-green-800 hover:bg-green-200">
+                <Link href="/leads/pipeline">Pipeline</Link>
               </Button>
               <Button asChild variant="outline" size="sm">
                 <Link href="/leads/archive">Archive</Link>

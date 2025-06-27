@@ -38,8 +38,8 @@ export default function LeadsPage() {
           {/* Navigation Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Lead Inbox */}
-            <Link href="/leads/inbox" className="group">
-              <div className="bg-white rounded-xl border border-amber-200 p-6 hover:shadow-lg transition-all duration-200 group-hover:border-amber-300">
+            <Link href="/leads/inbox" className="group h-full">
+              <div className="bg-white rounded-xl border border-amber-200 p-6 hover:shadow-lg transition-all duration-200 group-hover:border-amber-300 h-full flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-12 h-12 bg-gradient-to-r from-amber-400 to-orange-500 rounded-lg flex items-center justify-center">
                     <div className="w-6 h-6 bg-white rounded-sm flex items-center justify-center">
@@ -50,7 +50,7 @@ export default function LeadsPage() {
                 </div>
                 <h3 className="text-xl font-semibold text-slate-900 mb-2">Lead Inbox</h3>
                 <p className="text-slate-600 text-sm mb-4">
-                  Review and qualify raw leads from screenshot imports. Perfect first step to organize your leads.
+                  Review and qualify raw leads from screenshot imports. Perfect first step to organize leads.
                 </p>
                 <div className="flex items-center text-amber-600 text-sm font-medium group-hover:text-amber-700">
                   View Inbox <TrendingUp className="w-4 h-4 ml-2" />
@@ -59,8 +59,8 @@ export default function LeadsPage() {
             </Link>
 
             {/* Active Pipeline */}
-            <Link href="/leads/pipeline" className="group">
-              <div className="bg-white rounded-xl border border-green-200 p-6 hover:shadow-lg transition-all duration-200 group-hover:border-green-300">
+            <Link href="/leads/pipeline" className="group h-full">
+              <div className="bg-white rounded-xl border border-green-200 p-6 hover:shadow-lg transition-all duration-200 group-hover:border-green-300 h-full flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-12 h-12 bg-gradient-to-r from-green-400 to-emerald-500 rounded-lg flex items-center justify-center">
                     <Users className="w-6 h-6 text-white" />
@@ -78,8 +78,8 @@ export default function LeadsPage() {
             </Link>
 
             {/* Archive */}
-            <Link href="/leads/archive" className="group">
-              <div className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg transition-all duration-200 group-hover:border-slate-300">
+            <Link href="/leads/archive" className="group h-full">
+              <div className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg transition-all duration-200 group-hover:border-slate-300 h-full flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-12 h-12 bg-gradient-to-r from-slate-400 to-gray-500 rounded-lg flex items-center justify-center">
                     <Badge className="w-6 h-6 text-white" />

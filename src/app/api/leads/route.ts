@@ -65,7 +65,8 @@ export async function POST(request: Request) {
       notes: leadData.notes,
       conversation_history: conversation_history,
       status: 'raw',  // All new leads start as raw
-      is_group_chat: leadData.isGroupChat || false
+      is_group_chat: leadData.isGroupChat || false,
+      screenshot_id: leadData.screenshotId
     })
     
     return NextResponse.json({ 

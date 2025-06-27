@@ -55,10 +55,17 @@ try {
   // Column already exists, ignore error
 }
 
+try {
+  db.exec(`ALTER TABLE leads ADD COLUMN screenshot_id INTEGER`)
+} catch {
+  // Column already exists, ignore error
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS screenshots (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     filename TEXT NOT NULL,
+    file_data TEXT NOT NULL,
     analysis_result TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
@@ -87,6 +94,7 @@ export interface Lead {
   status?: 'raw' | 'active' | 'archived' | 'merged'
   merged_into_id?: number
   is_group_chat?: boolean
+  screenshot_id?: number
   created_at?: string
   updated_at?: string
 }
@@ -96,8 +104,8 @@ export const leadOperations = {
   // Insert a new lead
   create: (lead: Omit<Lead, 'id'>) => {
     const stmt = db.prepare(`
-      INSERT INTO leads (name, phone, platform, last_message, last_message_from, timestamp, conversation_summary, lead_score, notes, conversation_history, merged_from_ids, status, merged_into_id, is_group_chat)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO leads (name, phone, platform, last_message, last_message_from, timestamp, conversation_summary, lead_score, notes, conversation_history, merged_from_ids, status, merged_into_id, is_group_chat, screenshot_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     return stmt.run(
       lead.name,
@@ -113,7 +121,8 @@ export const leadOperations = {
       JSON.stringify(lead.merged_from_ids || []),
       lead.status || 'raw',
       lead.merged_into_id || null,
-      lead.is_group_chat ? 1 : 0
+      lead.is_group_chat ? 1 : 0,
+      lead.screenshot_id || null
     )
   },
 
@@ -337,6 +346,30 @@ export const leadOperations = {
 
     // Sort suggestions by confidence (highest first)
     return suggestions.sort((a, b) => b.confidence - a.confidence)
+  }
+}
+
+// Screenshot operations
+export const screenshotOperations = {
+  // Insert a new screenshot
+  create: (filename: string, fileData: string, analysisResult?: string) => {
+    const stmt = db.prepare(`
+      INSERT INTO screenshots (filename, file_data, analysis_result)
+      VALUES (?, ?, ?)
+    `)
+    return stmt.run(filename, fileData, analysisResult || null)
+  },
+
+  // Get screenshot by ID
+  getById: (id: number) => {
+    const stmt = db.prepare('SELECT * FROM screenshots WHERE id = ?')
+    return stmt.get(id) as { id: number; filename: string; file_data: string; analysis_result?: string; created_at: string } | undefined
+  },
+
+  // Get all screenshots
+  getAll: () => {
+    const stmt = db.prepare('SELECT * FROM screenshots ORDER BY created_at DESC')
+    return stmt.all() as { id: number; filename: string; file_data: string; analysis_result?: string; created_at: string }[]
   }
 }
 

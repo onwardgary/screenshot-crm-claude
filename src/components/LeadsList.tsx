@@ -20,15 +20,14 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Search
+  Search,
+  Image,
+  ExternalLink,
+  ArrowRight,
+  Archive,
+  RotateCcw
 } from 'lucide-react'
 
-interface ConversationEntry {
-  message: string
-  from: 'user' | 'contact'
-  timestamp: string
-  platform: string
-}
 
 interface Lead {
   id: number
@@ -41,100 +40,12 @@ interface Lead {
   conversation_summary?: string
   lead_score?: number
   notes?: string
-  conversation_history?: ConversationEntry[]
   merged_from_ids?: number[]
+  screenshot_id?: number
   created_at: string
   updated_at?: string
 }
 
-// Conversation History Component
-function ConversationHistory({ history }: { history: ConversationEntry[] }) {
-  const [expanded, setExpanded] = useState(false)
-  const displayHistory = expanded ? history : history.slice(0, 3)
-
-  const getPlatformBadge = (platform: string) => {
-    const platforms = {
-      whatsapp: 'bg-green-100 text-green-700',
-      instagram: 'bg-pink-100 text-pink-700',
-      tiktok: 'bg-slate-100 text-slate-700',
-      messenger: 'bg-blue-100 text-blue-700',
-      other: 'bg-gray-100 text-gray-700'
-    }
-    return platforms[platform as keyof typeof platforms] || platforms.other
-  }
-
-  return (
-    <div className="space-y-3">
-      <h4 className="font-medium text-slate-900 flex items-center gap-2">
-        <MessageCircle className="h-4 w-4" />
-        Recent Conversations
-      </h4>
-      
-      <div className="space-y-2">
-        {displayHistory.map((conversation, index) => (
-          <div key={index} className="p-3 sm:p-4 bg-slate-50 rounded-lg border-l-2 border-slate-200">
-            {/* Mobile Layout: Stacked */}
-            <div className="block sm:hidden space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Badge className={`text-xs ${getPlatformBadge(conversation.platform)}`}>
-                  {conversation.platform}
-                </Badge>
-                <span className={`text-xs font-medium ${
-                  conversation.from === 'contact' ? 'text-red-600' : 'text-green-600'
-                }`}>
-                  {conversation.from === 'contact' ? 'Contact' : 'You'}
-                </span>
-              </div>
-              <span className="text-xs text-slate-500 block">
-                {new Date(conversation.timestamp).toLocaleDateString()}
-              </span>
-              <p className="text-sm sm:text-base text-slate-700 italic leading-relaxed">
-                &ldquo;{conversation.message}&rdquo;
-              </p>
-            </div>
-
-            {/* Desktop Layout: Horizontal */}
-            <div className="hidden sm:block">
-              <div className="flex gap-3">
-                <div className="flex-shrink-0">
-                  <Badge className={`text-xs ${getPlatformBadge(conversation.platform)}`}>
-                    {conversation.platform}
-                  </Badge>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-xs font-medium ${
-                      conversation.from === 'contact' ? 'text-red-600' : 'text-green-600'
-                    }`}>
-                      {conversation.from === 'contact' ? 'Contact' : 'You'}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {new Date(conversation.timestamp).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-700 italic">
-                    &ldquo;{conversation.message}&rdquo;
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      
-      {history.length > 3 && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setExpanded(!expanded)}
-          className="w-full mt-2 h-10 sm:h-9"
-        >
-          {expanded ? 'Show Less' : `Show ${history.length - 3} More`}
-        </Button>
-      )}
-    </div>
-  )
-}
 
 interface LeadsListProps {
   statusFilter?: string
@@ -150,6 +61,10 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [platformFilter, setPlatformFilter] = useState('all')
   const [scoreFilter, setScoreFilter] = useState('all')
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false)
+  const [selectedScreenshotId, setSelectedScreenshotId] = useState<number | null>(null)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [updatingLeadId, setUpdatingLeadId] = useState<number | null>(null)
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -348,6 +263,71 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
     return 'bg-red-100 text-red-700'
   }
 
+  const handleViewScreenshot = (screenshotId: number) => {
+    setSelectedScreenshotId(screenshotId)
+    setShowScreenshotModal(true)
+  }
+
+  const closeScreenshotModal = () => {
+    setShowScreenshotModal(false)
+    setSelectedScreenshotId(null)
+  }
+
+  // Individual lead status update
+  const updateLeadStatus = async (leadId: number, newStatus: 'raw' | 'active' | 'archived') => {
+    setUpdatingLeadId(leadId)
+    try {
+      const response = await fetch(`/api/leads/${leadId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      })
+
+      if (response.ok) {
+        await fetchLeads() // Refresh the list
+      } else {
+        const error = await response.json()
+        alert(`Failed to update lead: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error updating lead status:', error)
+      alert('Failed to update lead status')
+    } finally {
+      setUpdatingLeadId(null)
+    }
+  }
+
+  // Bulk status update
+  const updateBulkStatus = async (newStatus: 'raw' | 'active' | 'archived') => {
+    if (selectedLeads.size === 0) return
+
+    const leadIds = Array.from(selectedLeads)
+    setUpdatingStatus(true)
+
+    try {
+      const response = await fetch('/api/leads/bulk-status', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds, status: newStatus })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        clearSelection()
+        await fetchLeads() // Refresh the list
+        alert(`✅ Successfully updated ${result.totalUpdated} leads to ${newStatus}`)
+      } else {
+        const error = await response.json()
+        alert(`Failed to update leads: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error in bulk status update:', error)
+      alert('Failed to update lead statuses')
+    } finally {
+      setUpdatingStatus(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -468,19 +448,82 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
                 <span className="text-sm font-medium text-slate-700">
                   {selectedLeads.size} selected
                 </span>
-                <Button
-                  onClick={handleMergeRequest}
-                  disabled={selectedLeads.size < 2 || merging}
-                  size="sm"
-                  className="bg-sky-600 hover:bg-sky-700 h-11 px-4"
-                >
-                  {merging ? (
-                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  ) : (
-                    <GitMerge className="h-5 w-5 mr-2" />
+                <div className="flex gap-2">
+                  {/* Status Actions Mobile */}
+                  {statusFilter === 'raw' && (
+                    <Button
+                      onClick={() => updateBulkStatus('active')}
+                      disabled={selectedLeads.size === 0 || updatingStatus}
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 h-11 px-3"
+                    >
+                      {updatingStatus ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ArrowRight className="h-4 w-4" />
+                      )}
+                    </Button>
                   )}
-                  Merge
-                </Button>
+
+                  {statusFilter === 'active' && (
+                    <>
+                      <Button
+                        onClick={() => updateBulkStatus('raw')}
+                        disabled={selectedLeads.size === 0 || updatingStatus}
+                        size="sm"
+                        className="bg-amber-600 hover:bg-amber-700 h-11 px-3"
+                      >
+                        {updatingStatus ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RotateCcw className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        onClick={() => updateBulkStatus('archived')}
+                        disabled={selectedLeads.size === 0 || updatingStatus}
+                        size="sm"
+                        className="bg-slate-600 hover:bg-slate-700 h-11 px-3"
+                      >
+                        {updatingStatus ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Archive className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </>
+                  )}
+
+                  {(statusFilter === 'archived' || statusFilter === 'archived,merged') && (
+                    <Button
+                      onClick={() => updateBulkStatus('active')}
+                      disabled={selectedLeads.size === 0 || updatingStatus}
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 h-11 px-3"
+                    >
+                      {updatingStatus ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
+
+                  {/* Merge Action Mobile */}
+                  <Button
+                    onClick={handleMergeRequest}
+                    disabled={selectedLeads.size < 2 || merging}
+                    size="sm"
+                    className="bg-sky-600 hover:bg-sky-700 h-11 px-4"
+                  >
+                    {merging ? (
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    ) : (
+                      <GitMerge className="h-5 w-5 mr-2" />
+                    )}
+                    Merge
+                  </Button>
+                </div>
               </div>
               <div className="flex gap-2">
                 <Button
@@ -530,6 +573,71 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
                 </Button>
               </div>
               <div className="flex items-center gap-2">
+                {/* Status Actions */}
+                {statusFilter === 'raw' && (
+                  <Button
+                    onClick={() => updateBulkStatus('active')}
+                    disabled={selectedLeads.size === 0 || updatingStatus}
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {updatingStatus ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <ArrowRight className="h-4 w-4 mr-2" />
+                    )}
+                    Qualify Selected
+                  </Button>
+                )}
+
+                {statusFilter === 'active' && (
+                  <>
+                    <Button
+                      onClick={() => updateBulkStatus('raw')}
+                      disabled={selectedLeads.size === 0 || updatingStatus}
+                      size="sm"
+                      className="bg-amber-600 hover:bg-amber-700"
+                    >
+                      {updatingStatus ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                      )}
+                      Back to Inbox
+                    </Button>
+                    <Button
+                      onClick={() => updateBulkStatus('archived')}
+                      disabled={selectedLeads.size === 0 || updatingStatus}
+                      size="sm"
+                      className="bg-slate-600 hover:bg-slate-700"
+                    >
+                      {updatingStatus ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Archive className="h-4 w-4 mr-2" />
+                      )}
+                      Archive Selected
+                    </Button>
+                  </>
+                )}
+
+                {(statusFilter === 'archived' || statusFilter === 'archived,merged') && (
+                  <Button
+                    onClick={() => updateBulkStatus('active')}
+                    disabled={selectedLeads.size === 0 || updatingStatus}
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {updatingStatus ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                    )}
+                    Reactivate Selected
+                  </Button>
+                )}
+
+                {/* Merge Action */}
                 <Button
                   onClick={handleMergeRequest}
                   disabled={selectedLeads.size < 2 || merging}
@@ -701,20 +809,6 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
                   </div>
                 )}
 
-                {/* Conversation Summary */}
-                {lead.conversation_summary && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-slate-900 text-sm">Conversation Summary</h4>
-                    <p className="text-slate-600 text-sm leading-relaxed">
-                      {lead.conversation_summary}
-                    </p>
-                  </div>
-                )}
-
-                {/* Conversation History */}
-                {lead.conversation_history && lead.conversation_history.length > 0 && (
-                  <ConversationHistory history={lead.conversation_history} />
-                )}
 
                 {/* Merged Leads Indicator */}
                 {lead.merged_from_ids && lead.merged_from_ids.length > 0 && (
@@ -735,6 +829,95 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
                     </div>
                   </div>
                 )}
+
+                {/* Screenshot Source */}
+                {lead.screenshot_id && (
+                  <div className="space-y-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleViewScreenshot(lead.screenshot_id!)}
+                      className="flex items-center gap-2 text-slate-600 hover:text-slate-800 border-slate-300 hover:border-slate-400"
+                    >
+                      <Image className="h-4 w-4" />
+                      View Source Screenshot
+                      <ExternalLink className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Status Actions */}
+                <div className="flex flex-wrap gap-2">
+                  {/* Inbox Actions (raw leads) */}
+                  {statusFilter === 'raw' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => updateLeadStatus(lead.id, 'active')}
+                      disabled={updatingLeadId === lead.id}
+                      className="flex items-center gap-2 text-green-700 hover:text-green-800 border-green-300 hover:border-green-400 hover:bg-green-50"
+                    >
+                      {updatingLeadId === lead.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ArrowRight className="h-4 w-4" />
+                      )}
+                      Qualify to Pipeline
+                    </Button>
+                  )}
+
+                  {/* Pipeline Actions (active leads) */}
+                  {statusFilter === 'active' && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateLeadStatus(lead.id, 'raw')}
+                        disabled={updatingLeadId === lead.id}
+                        className="flex items-center gap-2 text-amber-700 hover:text-amber-800 border-amber-300 hover:border-amber-400 hover:bg-amber-50"
+                      >
+                        {updatingLeadId === lead.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RotateCcw className="h-4 w-4" />
+                        )}
+                        Back to Inbox
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateLeadStatus(lead.id, 'archived')}
+                        disabled={updatingLeadId === lead.id}
+                        className="flex items-center gap-2 text-slate-700 hover:text-slate-800 border-slate-300 hover:border-slate-400 hover:bg-slate-50"
+                      >
+                        {updatingLeadId === lead.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Archive className="h-4 w-4" />
+                        )}
+                        Archive
+                      </Button>
+                    </>
+                  )}
+
+                  {/* Archive Actions (archived leads) */}
+                  {(statusFilter === 'archived' || statusFilter === 'archived,merged') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => updateLeadStatus(lead.id, 'active')}
+                      disabled={updatingLeadId === lead.id}
+                      className="flex items-center gap-2 text-green-700 hover:text-green-800 border-green-300 hover:border-green-400 hover:bg-green-50"
+                    >
+                      {updatingLeadId === lead.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-4 w-4" />
+                      )}
+                      Reactivate
+                    </Button>
+                  )}
+                </div>
 
                 {/* Timestamps */}
                 <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
@@ -797,6 +980,36 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
             </div>
           </CardContent>
         </Card>
+      </div>
+    )}
+
+    {/* Screenshot Modal */}
+    {showScreenshotModal && selectedScreenshotId && (
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+        <div className="relative max-w-4xl max-h-[90vh] bg-white rounded-lg overflow-hidden">
+          <div className="flex items-center justify-between p-4 border-b">
+            <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <Image className="h-5 w-5" />
+              Source Screenshot
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={closeScreenshotModal}
+              className="h-8 w-8 p-0 hover:bg-slate-100"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="p-4 max-h-[calc(90vh-4rem)] overflow-auto">
+            <img
+              src={`/api/screenshots/${selectedScreenshotId}`}
+              alt="Source screenshot"
+              className="max-w-full h-auto rounded-lg shadow-lg"
+              style={{ maxHeight: 'calc(90vh - 8rem)' }}
+            />
+          </div>
+        </div>
       </div>
     )}
   </div>

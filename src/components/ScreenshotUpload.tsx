@@ -16,6 +16,8 @@ export default function ScreenshotUpload() {
     extractedLeads?: unknown[];
     totalExtracted?: number;
     suggestion?: string;
+    details?: string;
+    rawResponse?: string;
   } | null>(null)
   const [dragActive, setDragActive] = useState(false)
 
@@ -34,12 +36,16 @@ export default function ScreenshotUpload() {
 
       const data = await response.json()
       
+      console.log('API Response:', data) // Debug log
+      console.log('Extracted leads:', data.extractedLeads) // Debug log
+      
       if (data.extractedLeads && data.extractedLeads.length > 0) {
         // Store analysis data and redirect to review page
         sessionStorage.setItem('analysisData', JSON.stringify(data))
         router.push('/analyze')
       } else {
         // Show results if no leads found or error
+        console.log('No leads found, showing results') // Debug log
         setResults(data)
       }
     } catch (error) {

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import Link from 'next/link'
-import { Upload, Inbox, AlertTriangle, GitMerge, X, Check, Eye, Users } from 'lucide-react'
+import { Upload, Inbox, AlertTriangle, GitMerge, X, Check, Eye, Users, RefreshCw } from 'lucide-react'
 import { Lead } from '@/lib/database'
 
 interface MergeSuggestion {
@@ -20,6 +20,8 @@ export default function LeadInboxPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [mergeSuggestions, setMergeSuggestions] = useState<MergeSuggestion[]>([])
   const [showSuggestions, setShowSuggestions] = useState(true)
+  const [showAllSuggestions, setShowAllSuggestions] = useState(false)
+  const [scanningForDuplicates, setScanningForDuplicates] = useState(false)
 
   useEffect(() => {
     fetchInboxLeads()
@@ -46,9 +48,71 @@ export default function LeadInboxPage() {
     }
   }
 
+  const handleScanForDuplicates = async () => {
+    setScanningForDuplicates(true)
+    try {
+      await fetchMergeSuggestions()
+      setShowSuggestions(true) // Show suggestions panel if it was hidden
+      setShowAllSuggestions(false) // Reset to showing limited view
+    } catch (error) {
+      console.error('Failed to scan for duplicates:', error)
+      alert('❌ Failed to scan for duplicates')
+    } finally {
+      setScanningForDuplicates(false)
+    }
+  }
+
+  const handleMergeSuggestion = async (suggestion: MergeSuggestion) => {
+    try {
+      const targetId = suggestion.targetLead.id!
+      const sourceIds = suggestion.duplicateLeads.map(lead => lead.id!)
+
+      const response = await fetch('/api/leads/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetId, sourceIds }),
+      })
+
+      if (response.ok) {
+        alert('✅ Leads merged successfully!')
+        // Refresh data
+        await fetchInboxLeads()
+        await fetchMergeSuggestions()
+      } else {
+        alert('❌ Failed to merge leads')
+      }
+    } catch (error) {
+      console.error('Error merging leads:', error)
+      alert('❌ Failed to merge leads')
+    }
+  }
+
+  const handleAcceptAllHighConfidence = async () => {
+    const highConfidenceSuggestions = mergeSuggestions.filter(s => s.confidence >= 90)
+    
+    if (highConfidenceSuggestions.length === 0) {
+      alert('No high confidence suggestions to merge')
+      return
+    }
+
+    const confirmed = confirm(`Are you sure you want to merge ${highConfidenceSuggestions.length} high confidence suggestions?`)
+    if (!confirmed) return
+
+    try {
+      for (const suggestion of highConfidenceSuggestions) {
+        await handleMergeSuggestion(suggestion)
+      }
+      alert(`✅ Merged ${highConfidenceSuggestions.length} high confidence suggestions!`)
+    } catch (error) {
+      console.error('Error in batch merge:', error)
+      alert('❌ Some merges may have failed')
+    }
+  }
+
   const groupChats = leads.filter(lead => lead.is_group_chat)
   const individualLeads = leads.filter(lead => !lead.is_group_chat)
   const highConfidenceSuggestions = mergeSuggestions.filter(s => s.confidence >= 90)
+  const displayedSuggestions = showAllSuggestions ? mergeSuggestions : mergeSuggestions.slice(0, 3)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -60,7 +124,10 @@ export default function LeadInboxPage() {
             <h1 className="text-xl font-semibold text-slate-900">Screenshot CRM</h1>
           </Link>
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-1">
+            <div className="flex items-center gap-1">
+              <Button asChild variant="default" size="sm" className="bg-amber-100 text-amber-800 hover:bg-amber-200">
+                <Link href="/leads/inbox">Inbox</Link>
+              </Button>
               <Button asChild variant="outline" size="sm">
                 <Link href="/leads/pipeline">Pipeline</Link>
               </Button>
@@ -134,13 +201,25 @@ export default function LeadInboxPage() {
           </div>
 
           {/* Quick Actions */}
-          <div className="flex flex-wrap items-center gap-3 mb-6">
-            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
-              Inbox View
-            </Badge>
-            <div className="text-sm text-slate-600">
-              Qualify leads to move them to your active pipeline
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                Inbox View
+              </Badge>
+              <div className="text-sm text-slate-600">
+                Qualify leads to move them to your active pipeline
+              </div>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleScanForDuplicates}
+              disabled={scanningForDuplicates}
+              className="flex items-center gap-2 border-blue-300 text-blue-700 hover:bg-blue-100"
+            >
+              <RefreshCw className={`h-4 w-4 ${scanningForDuplicates ? 'animate-spin' : ''}`} />
+              {scanningForDuplicates ? 'Scanning...' : 'Scan for Duplicates'}
+            </Button>
           </div>
         </div>
 
@@ -197,7 +276,7 @@ export default function LeadInboxPage() {
                   </div>
 
                   <div className="space-y-3">
-                    {mergeSuggestions.slice(0, 3).map((suggestion, index) => (
+                    {displayedSuggestions.map((suggestion, index) => (
                       <div key={index} className="bg-white rounded-lg border border-blue-200 p-4">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
@@ -224,6 +303,10 @@ export default function LeadInboxPage() {
                             <Button
                               variant="outline"
                               size="sm"
+                              onClick={() => {
+                                // For now, just show details - could open a modal later
+                                alert(`Review ${suggestion.targetLead.name} + ${suggestion.duplicateLeads.length} similar leads\n\nConfidence: ${suggestion.confidence}%\nReason: ${suggestion.reason}\n\nSimilar leads: ${suggestion.duplicateLeads.map(l => l.name).join(', ')}`)
+                              }}
                               className="h-8 text-xs border-blue-300 text-blue-700 hover:bg-blue-100"
                             >
                               <Eye className="h-3 w-3 mr-1" />
@@ -231,6 +314,7 @@ export default function LeadInboxPage() {
                             </Button>
                             <Button
                               size="sm"
+                              onClick={() => handleMergeSuggestion(suggestion)}
                               className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white"
                             >
                               <Check className="h-3 w-3 mr-1" />
@@ -251,9 +335,10 @@ export default function LeadInboxPage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => setShowAllSuggestions(!showAllSuggestions)}
                         className="border-blue-300 text-blue-700 hover:bg-blue-100"
                       >
-                        View All {mergeSuggestions.length} Suggestions
+                        {showAllSuggestions ? 'Show Less' : `View All ${mergeSuggestions.length} Suggestions`}
                       </Button>
                     </div>
                   )}
@@ -262,9 +347,11 @@ export default function LeadInboxPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-8 text-xs border-blue-300 text-blue-700 hover:bg-blue-100"
+                      onClick={handleAcceptAllHighConfidence}
+                      disabled={highConfidenceSuggestions.length === 0}
+                      className="h-8 text-xs border-blue-300 text-blue-700 hover:bg-blue-100 disabled:opacity-50"
                     >
-                      Accept All High Confidence (90%+)
+                      Accept All High Confidence (90%+) {highConfidenceSuggestions.length > 0 && `(${highConfidenceSuggestions.length})`}
                     </Button>
                     <Button
                       variant="outline"
