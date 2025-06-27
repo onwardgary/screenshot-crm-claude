@@ -4,7 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Screenshot CRM - A comprehensive lead management system that analyzes social media conversation screenshots (WhatsApp, Instagram, TikTok, Messenger) and extracts lead information using GPT-4 Vision API. Features complete lead lifecycle management with pipeline views, bulk operations, and screenshot traceability.
+Screenshot CRM - A **lightweight, zero-integration CRM** designed for **individual direct sellers** (insurance agents, MLM distributors like Amway/Usana/Mary Kay) to easily manage leads from social media conversations. Uses GPT-4 Vision API to extract lead information from screenshots and provides simple lead management with optional upline/team management features.
+
+## Target Audience & Philosophy
+
+**Primary Users:**
+- Individual insurance agents
+- Direct sales representatives (MLM/network marketing)
+- Welfare product distributors
+- Independent sales professionals
+
+**Core Philosophy:**
+- **Lightweight & Simple** - No complex integrations or enterprise features
+- **Screenshot-first** - Extract leads from existing social conversations
+- **Individual-focused** - Personal performance tracking and simple workflows
+- **Team-aware** - Upline management for team oversight and coaching
+- **Zero Setup** - Works immediately without connecting external systems
+
+**Intentionally NOT building:**
+- Enterprise CRM features
+- Complex automation workflows  
+- Multiple communication channel integrations
+- Advanced reporting/analytics
+- Heavy customization options
 
 ## Tech Stack
 
@@ -159,3 +181,64 @@ GPT-4 Vision extracts leads in this format:
 - Group chats auto-detected and can be filtered/skipped during lead review
 - All status changes refresh lead lists automatically
 - Bulk operations provide detailed success/error feedback
+
+## Direct Sales CRM - Next Development Priorities
+
+### Critical Missing Features (for individual direct sellers)
+
+**1. Personal Sales Performance Tracking**
+- Sales targets and progress visualization
+- Monthly/weekly volume tracking  
+- Rank/level progression indicators
+- Commission calculations and projections
+- Product-specific sales tracking
+
+**2. Team/Upline Management (for team leaders)**
+- Team member performance dashboard
+- Individual team member overview
+- Team leaderboards and rankings
+- Coaching notes and feedback system
+- Team communication broadcasts
+
+**3. Simple Contact Enrichment**
+- Lead temperature classification (hot/warm/cold)
+- Interest categories (health/beauty/income opportunity)
+- Relationship type (family/friend/stranger/referral)
+- Last contact attempt tracking
+- Follow-up cadence planning
+
+**4. Lightweight Follow-up System**
+- Simple reminder notifications
+- Follow-up templates for common scenarios
+- Contact attempt logging (called/messaged/met)
+- Next action planning (basic)
+
+### Implementation Priority Order
+
+**Phase 1: Individual Seller Essentials**
+1. Personal performance dashboard with targets
+2. Simple follow-up reminder system
+3. Lead temperature/categorization
+4. Contact attempt tracking
+
+**Phase 2: Team Management**
+1. Team overview dashboard for uplines
+2. Individual team member performance views
+3. Basic coaching notes system
+4. Team communication features
+
+**Phase 3: Analytics & Optimization**
+1. Personal conversion rate tracking
+2. Lead source effectiveness analysis
+3. Monthly activity summaries
+4. Goal vs actual reporting
+
+### Keep Simple - Intentionally Avoid
+
+- Enterprise-level integrations
+- Complex automation workflows
+- Heavy reporting and analytics
+- Multiple communication channel integrations
+- Advanced customization options
+
+**Remember:** This is a lightweight, screenshot-first CRM for individual direct sellers, not an enterprise solution.
