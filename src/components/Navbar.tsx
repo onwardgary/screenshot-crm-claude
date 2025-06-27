@@ -35,19 +35,11 @@ export default function Navbar({ currentPage = 'home', showLeadTabs = false }: N
                 <div className="flex items-center gap-1">
                   <Button 
                     asChild 
-                    variant={currentPage === 'inbox' ? 'default' : 'outline'} 
+                    variant={currentPage === 'leads' ? 'default' : 'outline'} 
                     size="sm" 
-                    className={currentPage === 'inbox' ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' : ''}
+                    className={currentPage === 'leads' ? 'bg-green-100 text-green-800 hover:bg-green-200' : ''}
                   >
-                    <Link href="/leads/inbox">Inbox</Link>
-                  </Button>
-                  <Button 
-                    asChild 
-                    variant={currentPage === 'pipeline' ? 'default' : 'outline'} 
-                    size="sm"
-                    className={currentPage === 'pipeline' ? 'bg-green-100 text-green-800 hover:bg-green-200' : ''}
-                  >
-                    <Link href="/leads/pipeline">Pipeline</Link>
+                    <Link href="/leads">Active</Link>
                   </Button>
                   <Button 
                     asChild 
@@ -106,22 +98,12 @@ export default function Navbar({ currentPage = 'home', showLeadTabs = false }: N
                   <div className="space-y-1 mb-3">
                     <Button 
                       asChild 
-                      variant={currentPage === 'inbox' ? 'default' : 'ghost'} 
-                      className={`w-full justify-start ${currentPage === 'inbox' ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' : ''}`}
+                      variant={currentPage === 'leads' ? 'default' : 'ghost'} 
+                      className={`w-full justify-start ${currentPage === 'leads' ? 'bg-green-100 text-green-800 hover:bg-green-200' : ''}`}
                       size="sm"
                     >
-                      <Link href="/leads/inbox" onClick={() => setIsMobileMenuOpen(false)}>
-                        Inbox
-                      </Link>
-                    </Button>
-                    <Button 
-                      asChild 
-                      variant={currentPage === 'pipeline' ? 'default' : 'ghost'} 
-                      className={`w-full justify-start ${currentPage === 'pipeline' ? 'bg-green-100 text-green-800 hover:bg-green-200' : ''}`}
-                      size="sm"
-                    >
-                      <Link href="/leads/pipeline" onClick={() => setIsMobileMenuOpen(false)}>
-                        Pipeline
+                      <Link href="/leads" onClick={() => setIsMobileMenuOpen(false)}>
+                        Active
                       </Link>
                     </Button>
                     <Button 
@@ -170,13 +152,8 @@ export default function Navbar({ currentPage = 'home', showLeadTabs = false }: N
                   {/* Additional mobile-only links */}
                   <div className="pt-2 border-t border-slate-200 mt-2">
                     <Button asChild variant="ghost" className="w-full justify-start text-slate-600" size="sm">
-                      <Link href="/leads/inbox" onClick={() => setIsMobileMenuOpen(false)}>
-                        Inbox
-                      </Link>
-                    </Button>
-                    <Button asChild variant="ghost" className="w-full justify-start text-slate-600" size="sm">
-                      <Link href="/leads/pipeline" onClick={() => setIsMobileMenuOpen(false)}>
-                        Pipeline
+                      <Link href="/leads" onClick={() => setIsMobileMenuOpen(false)}>
+                        Active Leads
                       </Link>
                     </Button>
                     <Button asChild variant="ghost" className="w-full justify-start text-slate-600" size="sm">

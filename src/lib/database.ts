@@ -38,7 +38,7 @@ try {
 }
 
 try {
-  db.exec(`ALTER TABLE leads ADD COLUMN status TEXT DEFAULT 'raw'`)
+  db.exec(`ALTER TABLE leads ADD COLUMN status TEXT DEFAULT 'active'`)
 } catch {
   // Column already exists, ignore error
 }
@@ -156,7 +156,7 @@ export const leadOperations = {
       lead.notes || null,
       JSON.stringify(lead.conversation_history || []),
       JSON.stringify(lead.merged_from_ids || []),
-      lead.status || 'raw',
+      lead.status || 'active',
       lead.merged_into_id || null,
       lead.is_group_chat ? 1 : 0,
       lead.screenshot_id || null,
@@ -335,7 +335,7 @@ export const leadOperations = {
   },
 
   // Auto-merge suggestion algorithm with confidence scoring
-  getMergeSuggestions: (status: 'raw' | 'active' = 'raw') => {
+  getMergeSuggestions: (status: 'raw' | 'active' = 'active') => {
     const leads = leadOperations.getByStatus(status).filter(lead => !lead.is_group_chat)
     const suggestions: Array<{
       targetLead: Lead
@@ -397,7 +397,7 @@ export const leadOperations = {
       SELECT * FROM leads 
       WHERE next_followup_date IS NOT NULL 
       AND next_followup_date <= ? 
-      AND status IN ('raw', 'active')
+      AND status = 'active'
       ORDER BY next_followup_date ASC, lead_score DESC
     `)
     const rows = stmt.all(today) as Record<string, unknown>[]
@@ -474,7 +474,7 @@ export const leadOperations = {
   findExistingForMerge: (name: string, phone?: string) => {
     // Prioritize exact phone match
     if (phone) {
-      const phoneStmt = db.prepare("SELECT * FROM leads WHERE phone = ? AND status IN ('raw', 'active') LIMIT 1")
+      const phoneStmt = db.prepare("SELECT * FROM leads WHERE phone = ? AND status = 'active' LIMIT 1")
       const phoneMatch = phoneStmt.get(phone) as Record<string, unknown> | undefined
       if (phoneMatch) {
         return {
@@ -491,7 +491,7 @@ export const leadOperations = {
     const nameStmt = db.prepare(`
       SELECT * FROM leads 
       WHERE LOWER(name) = ? 
-      AND status IN ('raw', 'active') 
+      AND status = 'active' 
       LIMIT 1
     `)
     const nameMatch = nameStmt.get(cleanName) as Record<string, unknown> | undefined

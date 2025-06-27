@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       lead_score: leadData.leadScore,
       notes: leadData.notes,
       conversation_history: conversation_history,
-      status: 'raw',  // All new leads start as raw
+      status: 'active',  // All new leads start as active
       is_group_chat: leadData.isGroupChat || false,
       screenshot_id: leadData.screenshotId
     })

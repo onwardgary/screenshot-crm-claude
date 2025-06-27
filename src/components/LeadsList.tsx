@@ -633,51 +633,20 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
               </div>
               <div className="flex items-center gap-2">
                 {/* Status Actions */}
-                {statusFilter === 'raw' && (
+                {statusFilter === 'active' && (
                   <Button
-                    onClick={() => updateBulkStatus('active')}
+                    onClick={() => updateBulkStatus('archived')}
                     disabled={selectedLeads.size === 0 || updatingStatus}
                     size="sm"
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-slate-600 hover:bg-slate-700"
                   >
                     {updatingStatus ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     ) : (
-                      <ArrowRight className="h-4 w-4 mr-2" />
+                      <Archive className="h-4 w-4 mr-2" />
                     )}
-                    Qualify Selected
+                    Archive Selected
                   </Button>
-                )}
-
-                {statusFilter === 'active' && (
-                  <>
-                    <Button
-                      onClick={() => updateBulkStatus('raw')}
-                      disabled={selectedLeads.size === 0 || updatingStatus}
-                      size="sm"
-                      className="bg-amber-600 hover:bg-amber-700"
-                    >
-                      {updatingStatus ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <RotateCcw className="h-4 w-4 mr-2" />
-                      )}
-                      Back to Inbox
-                    </Button>
-                    <Button
-                      onClick={() => updateBulkStatus('archived')}
-                      disabled={selectedLeads.size === 0 || updatingStatus}
-                      size="sm"
-                      className="bg-slate-600 hover:bg-slate-700"
-                    >
-                      {updatingStatus ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Archive className="h-4 w-4 mr-2" />
-                      )}
-                      Archive Selected
-                    </Button>
-                  </>
                 )}
 
                 {(statusFilter === 'archived' || statusFilter === 'archived,merged') && (
@@ -990,56 +959,22 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
 
                 {/* Status Actions */}
                 <div className="flex flex-wrap gap-2">
-                  {/* Inbox Actions (raw leads) */}
-                  {statusFilter === 'raw' && (
+                  {/* Active Lead Actions */}
+                  {statusFilter === 'active' && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => updateLeadStatus(lead.id, 'active')}
+                      onClick={() => updateLeadStatus(lead.id, 'archived')}
                       disabled={updatingLeadId === lead.id}
-                      className="flex items-center gap-2 text-green-700 hover:text-green-800 border-green-300 hover:border-green-400 hover:bg-green-50"
+                      className="flex items-center gap-2 text-slate-700 hover:text-slate-800 border-slate-300 hover:border-slate-400 hover:bg-slate-50"
                     >
                       {updatingLeadId === lead.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <ArrowRight className="h-4 w-4" />
+                        <Archive className="h-4 w-4" />
                       )}
-                      Qualify to Pipeline
+                      Archive
                     </Button>
-                  )}
-
-                  {/* Pipeline Actions (active leads) */}
-                  {statusFilter === 'active' && (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => updateLeadStatus(lead.id, 'raw')}
-                        disabled={updatingLeadId === lead.id}
-                        className="flex items-center gap-2 text-amber-700 hover:text-amber-800 border-amber-300 hover:border-amber-400 hover:bg-amber-50"
-                      >
-                        {updatingLeadId === lead.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <RotateCcw className="h-4 w-4" />
-                        )}
-                        Back to Inbox
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => updateLeadStatus(lead.id, 'archived')}
-                        disabled={updatingLeadId === lead.id}
-                        className="flex items-center gap-2 text-slate-700 hover:text-slate-800 border-slate-300 hover:border-slate-400 hover:bg-slate-50"
-                      >
-                        {updatingLeadId === lead.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Archive className="h-4 w-4" />
-                        )}
-                        Archive
-                      </Button>
-                    </>
                   )}
 
                   {/* Archive Actions (archived leads) */}

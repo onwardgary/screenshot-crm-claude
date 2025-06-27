@@ -4,7 +4,7 @@ import { leadOperations } from '@/lib/database'
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const status = searchParams.get('status') as 'raw' | 'active' || 'raw'
+    const status = searchParams.get('status') as 'raw' | 'active' || 'active'
 
     const suggestions = leadOperations.getMergeSuggestions(status)
 
