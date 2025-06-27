@@ -57,15 +57,16 @@ npm run type-check
 
 ## Key Architecture
 
-### Core Features
+### Core Features ✨ **SIMPLIFIED WORKFLOW (Dec 2024)**
 1. **Screenshot Upload** (`/`) - Main upload interface with drag & drop
-2. **Three-View Lead Pipeline** - Lead Inbox (raw) → Active Pipeline → Archive with seamless movement
-3. **Individual & Bulk Actions** - Move single leads or bulk operations with selection system
+2. **Two-Stage Lead Pipeline** - Active → Archive (eliminated redundant Inbox/Pipeline distinction)
+3. **Individual & Bulk Actions** - Archive/Reactivate operations with selection system
 4. **Screenshot Traceability** - View original screenshot source for any lead with modal viewer
 5. **GPT-4 Vision Analysis** - Processes screenshots to extract structured lead data with group chat detection
 6. **Auto-Merge Suggestions** - AI-powered duplicate detection with confidence scoring (60-100%)
 7. **Manual Lead Merging** - Combine duplicate leads with conversation history preservation
 8. **Follow-up Tracking** - Visual indicators for who sent last message (contact = red, user = green)
+9. **Complete Follow-up System** - Contact attempts, follow-up dates, notes, and reminder tracking
 
 ### Database Schema
 - **leads table**: Core lead data with status, screenshot_id, and merge tracking
@@ -84,7 +85,9 @@ npm run type-check
 - `ScreenshotUpload` - File upload interface with drag & drop
 - `LeadsList` - Advanced lead display with bulk selection, status actions, merge suggestions, and screenshot viewing
 - `database.ts` - SQLite operations with leadOperations and screenshotOperations
-- **Lead Pipeline Pages**: `/leads/inbox`, `/leads/pipeline`, `/leads/archive` with context-aware actions
+- **Lead Pages**: `/leads` (Active leads), `/leads/archive` with context-aware actions
+- `Navbar` - Responsive navigation with simplified Active/Archive tabs
+- `FollowupBanner` - Dashboard for due follow-ups and contact reminders
 
 ## Environment Variables
 
@@ -119,22 +122,27 @@ GPT-4 Vision extracts leads in this format:
 - **Green indicator**: User sent the last message (waiting for response)
 - Lead scoring helps prioritize high-value prospects
 
-## Lead Lifecycle Management
+## Lead Lifecycle Management ✨ **SIMPLIFIED (Dec 2024)**
 
 ### Status Flow
-- **Raw** (Inbox) → **Active** (Pipeline) → **Archived** (Completed)
+- **Active** → **Archived** (eliminated raw/inbox status - all leads start as active)
 - **Merged** status for consolidated leads
 
 ### Individual Actions
-- **Inbox**: "Qualify to Pipeline" (raw → active)
-- **Pipeline**: "Back to Inbox" (active → raw) + "Archive" (active → archived)  
+- **Active Leads**: "Archive" (active → archived)
 - **Archive**: "Reactivate" (archived → active)
 
 ### Bulk Actions
 - Select multiple leads with checkboxes
 - Context-aware bulk buttons appear in sticky toolbar
-- "Qualify Selected", "Archive Selected", "Reactivate Selected"
+- "Archive Selected", "Reactivate Selected"
 - Merge functionality for duplicate consolidation
+
+### Follow-up System
+- **Contact Attempts**: Track calls, messages, meetings with timestamp
+- **Follow-up Dates**: Set reminders (Tomorrow, 3 Days, 1 Week, 1 Month)
+- **Visual Indicators**: Red (contact sent last) vs Green (user sent last)
+- **Due Follow-ups**: Dashboard banner shows overdue contacts
 
 ## Auto-Merge Suggestions
 
@@ -242,3 +250,50 @@ GPT-4 Vision extracts leads in this format:
 - Advanced customization options
 
 **Remember:** This is a lightweight, screenshot-first CRM for individual direct sellers, not an enterprise solution.
+
+---
+
+## 🚀 Recent Progress & Next Steps (December 2024)
+
+### ✅ **Completed Major Workflow Simplification**
+
+**Date**: December 27, 2024  
+**Branch**: `simplify-workflow` (pushed to GitHub)  
+**Key Insight**: User identified that Inbox and Pipeline were redundant - both had identical follow-up functionality
+
+**What Was Done:**
+1. **Eliminated 3-stage confusion**: Removed separate `/leads/inbox` and `/leads/pipeline` pages
+2. **Unified to 2-stage flow**: Active → Archive (much clearer for direct sellers)
+3. **Preserved all power**: Follow-up system, merge suggestions, contact tracking fully maintained
+4. **Updated defaults**: New leads start as 'active' instead of 'raw'
+5. **Simplified navigation**: Navbar now shows only "Active" and "Archive" tabs
+6. **Fixed duplicate detection**: Names with parenthetical additions (e.g., "Gannis (You)") now merge correctly
+
+**Technical Changes:**
+- Removed `/leads/inbox/page.tsx` and `/leads/pipeline/page.tsx`
+- Transformed `/leads/page.tsx` into unified active leads management
+- Updated database operations to default to 'active' status
+- Simplified bulk operations and individual lead actions
+- Updated navbar component for two-tab navigation
+
+### 🎯 **Ready for Next Session**
+
+**Current State**: Fully functional simplified workflow on `simplify-workflow` branch
+
+**Next Priorities** (in order):
+1. **Test & Validate**: Create PR and test the simplified workflow thoroughly
+2. **User Feedback**: Get user validation on the simplified flow
+3. **Merge to Main**: If approved, merge `simplify-workflow` → `main`
+4. **Performance Dashboard**: Add individual sales tracking (targets, progress, rank)
+5. **Team Management**: Add upline/team oversight features for team leaders
+
+**Development Environment**:
+- Server runs on `http://localhost:3001` (port 3000 was in use)
+- All changes committed and pushed to GitHub
+- Easy rollback available: `git checkout main` if needed
+
+**Files Ready for Tomorrow**:
+- Workflow simplification complete and documented
+- All todo items completed
+- Clean git history with descriptive commits
+- Ready to pick up with performance dashboard or user testing
