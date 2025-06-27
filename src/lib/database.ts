@@ -61,6 +61,37 @@ try {
   // Column already exists, ignore error
 }
 
+// Follow-up system columns
+try {
+  db.exec(`ALTER TABLE leads ADD COLUMN next_followup_date DATE`)
+} catch {
+  // Column already exists, ignore error
+}
+
+try {
+  db.exec(`ALTER TABLE leads ADD COLUMN followup_notes TEXT`)
+} catch {
+  // Column already exists, ignore error
+}
+
+try {
+  db.exec(`ALTER TABLE leads ADD COLUMN last_contact_attempt DATE`)
+} catch {
+  // Column already exists, ignore error
+}
+
+try {
+  db.exec(`ALTER TABLE leads ADD COLUMN contact_attempts INTEGER DEFAULT 0`)
+} catch {
+  // Column already exists, ignore error
+}
+
+try {
+  db.exec(`ALTER TABLE leads ADD COLUMN relationship_type TEXT`)
+} catch {
+  // Column already exists, ignore error
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS screenshots (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,6 +128,12 @@ export interface Lead {
   screenshot_id?: number
   created_at?: string
   updated_at?: string
+  // Follow-up system for direct sales
+  next_followup_date?: string
+  followup_notes?: string
+  last_contact_attempt?: string
+  contact_attempts?: number
+  relationship_type?: 'family' | 'friend' | 'stranger' | 'referral' | 'existing_customer'
 }
 
 // Lead operations
@@ -104,8 +141,8 @@ export const leadOperations = {
   // Insert a new lead
   create: (lead: Omit<Lead, 'id'>) => {
     const stmt = db.prepare(`
-      INSERT INTO leads (name, phone, platform, last_message, last_message_from, timestamp, conversation_summary, lead_score, notes, conversation_history, merged_from_ids, status, merged_into_id, is_group_chat, screenshot_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO leads (name, phone, platform, last_message, last_message_from, timestamp, conversation_summary, lead_score, notes, conversation_history, merged_from_ids, status, merged_into_id, is_group_chat, screenshot_id, next_followup_date, followup_notes, last_contact_attempt, contact_attempts, relationship_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     return stmt.run(
       lead.name,
@@ -122,7 +159,12 @@ export const leadOperations = {
       lead.status || 'raw',
       lead.merged_into_id || null,
       lead.is_group_chat ? 1 : 0,
-      lead.screenshot_id || null
+      lead.screenshot_id || null,
+      lead.next_followup_date || null,
+      lead.followup_notes || null,
+      lead.last_contact_attempt || null,
+      lead.contact_attempts || 0,
+      lead.relationship_type || null
     )
   },
 
@@ -346,6 +388,124 @@ export const leadOperations = {
 
     // Sort suggestions by confidence (highest first)
     return suggestions.sort((a, b) => b.confidence - a.confidence)
+  },
+
+  // Get leads due for follow-up
+  getDueFollowups: () => {
+    const today = new Date().toISOString().split('T')[0]
+    const stmt = db.prepare(`
+      SELECT * FROM leads 
+      WHERE next_followup_date IS NOT NULL 
+      AND next_followup_date <= ? 
+      AND status IN ('raw', 'active')
+      ORDER BY next_followup_date ASC, lead_score DESC
+    `)
+    const rows = stmt.all(today) as Record<string, unknown>[]
+    return rows.map(row => ({
+      ...row,
+      conversation_history: JSON.parse((row.conversation_history as string) || '[]'),
+      merged_from_ids: JSON.parse((row.merged_from_ids as string) || '[]'),
+      is_group_chat: Boolean(row.is_group_chat as number)
+    })) as Lead[]
+  },
+
+  // Update follow-up information
+  updateFollowup: (id: number, followupData: { next_followup_date?: string; followup_notes?: string }) => {
+    const fields = Object.keys(followupData).filter(key => followupData[key as keyof typeof followupData] !== undefined)
+    if (fields.length === 0) return null
+    
+    const setClause = fields.map(field => `${field} = ?`).join(', ')
+    const values = fields.map(field => followupData[field as keyof typeof followupData])
+    
+    const stmt = db.prepare(`
+      UPDATE leads SET ${setClause}, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `)
+    return stmt.run(...values, id)
+  },
+
+  // Log contact attempt
+  logContactAttempt: (id: number, attemptType?: string) => {
+    const today = new Date().toISOString().split('T')[0]
+    const stmt = db.prepare(`
+      UPDATE leads 
+      SET last_contact_attempt = ?, 
+          contact_attempts = COALESCE(contact_attempts, 0) + 1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `)
+    return stmt.run(today, id)
+  },
+
+  // Smart merge for existing leads (preserve manual data, update conversation)
+  smartMerge: (leadId: number, conversationUpdate: {
+    last_message?: string
+    last_message_from?: string
+    timestamp?: string
+    lead_score?: number
+    platform?: string
+  }) => {
+    const fields = Object.keys(conversationUpdate).filter(key => 
+      conversationUpdate[key as keyof typeof conversationUpdate] !== undefined
+    )
+    
+    if (fields.length === 0) return null
+    
+    // Only update lead_score if new score is higher
+    const existingLead = leadOperations.getAll().find(l => l.id === leadId)
+    if (existingLead && conversationUpdate.lead_score && existingLead.lead_score) {
+      if (conversationUpdate.lead_score <= existingLead.lead_score) {
+        delete conversationUpdate.lead_score
+        fields.splice(fields.indexOf('lead_score'), 1)
+      }
+    }
+    
+    const setClause = fields.map(field => `${field} = ?`).join(', ')
+    const values = fields.map(field => conversationUpdate[field as keyof typeof conversationUpdate])
+    
+    const stmt = db.prepare(`
+      UPDATE leads SET ${setClause}, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `)
+    return stmt.run(...values, leadId)
+  },
+
+  // Find existing lead by phone or name for smart merging
+  findExistingForMerge: (name: string, phone?: string) => {
+    // Prioritize exact phone match
+    if (phone) {
+      const phoneStmt = db.prepare("SELECT * FROM leads WHERE phone = ? AND status IN ('raw', 'active') LIMIT 1")
+      const phoneMatch = phoneStmt.get(phone) as Record<string, unknown> | undefined
+      if (phoneMatch) {
+        return {
+          ...phoneMatch,
+          conversation_history: JSON.parse((phoneMatch.conversation_history as string) || '[]'),
+          merged_from_ids: JSON.parse((phoneMatch.merged_from_ids as string) || '[]'),
+          is_group_chat: Boolean(phoneMatch.is_group_chat as number)
+        } as Lead
+      }
+    }
+    
+    // Fallback to name similarity (high confidence only)
+    const cleanName = name.toLowerCase().trim()
+    const nameStmt = db.prepare(`
+      SELECT * FROM leads 
+      WHERE LOWER(name) = ? 
+      AND status IN ('raw', 'active') 
+      LIMIT 1
+    `)
+    const nameMatch = nameStmt.get(cleanName) as Record<string, unknown> | undefined
+    
+    if (nameMatch) {
+      return {
+        ...nameMatch,
+        conversation_history: JSON.parse((nameMatch.conversation_history as string) || '[]'),
+        merged_from_ids: JSON.parse((nameMatch.merged_from_ids as string) || '[]'),
+        is_group_chat: Boolean(nameMatch.is_group_chat as number)
+      } as Lead
+    }
+    
+    return null
   }
 }
 
@@ -393,16 +553,23 @@ function calculateDuplicateScore(lead1: Lead, lead2: Lead): { confidence: number
   // Name similarity matching
   const name1 = lead1.name.toLowerCase().trim()
   const name2 = lead2.name.toLowerCase().trim()
+  
+  // Normalize names by removing parenthetical additions like "(You)", "(Me)", etc.
+  const normalized1 = name1.replace(/\s*\([^)]*\)\s*$/, '').trim()
+  const normalized2 = name2.replace(/\s*\([^)]*\)\s*$/, '').trim()
 
-  // Exact name match
-  if (name1 === name2) {
+  // Exact name match (original or normalized)
+  if (name1 === name2 || normalized1 === normalized2) {
     confidence += 85
-    reasons.push('Exact name match')
+    reasons.push(normalized1 === normalized2 ? 'Exact name match (normalized)' : 'Exact name match')
   }
   // Check if one name contains the other (e.g., "John" vs "John Smith")
-  else if (name1.includes(name2) || name2.includes(name1)) {
-    const similarity = Math.min(name1.length, name2.length) / Math.max(name1.length, name2.length)
-    confidence += Math.round(70 * similarity)
+  else if (name1.includes(name2) || name2.includes(name1) || normalized1.includes(normalized2) || normalized2.includes(normalized1)) {
+    // Use normalized names for better similarity calculation
+    const baseName1 = normalized1 || name1
+    const baseName2 = normalized2 || name2
+    const similarity = Math.min(baseName1.length, baseName2.length) / Math.max(baseName1.length, baseName2.length)
+    confidence += Math.round(80 * similarity) // Increased from 70 to 80 for better matching
     reasons.push('Name similarity')
   }
   // Check for similar names with typos or variations

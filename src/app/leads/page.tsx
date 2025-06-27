@@ -1,26 +1,13 @@
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import Navbar from '@/components/Navbar'
 import Link from 'next/link'
 import { Upload, Users, TrendingUp } from 'lucide-react'
 
 export default function LeadsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Navigation Bar */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-sky-400 to-blue-500 rounded-lg"></div>
-            <h1 className="text-xl font-semibold text-slate-900">Screenshot CRM</h1>
-          </Link>
-          <Button asChild className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700">
-            <Link href="/">
-              <Upload className="w-4 h-4 mr-2" />
-              Upload Screenshot
-            </Link>
-          </Button>
-        </div>
-      </nav>
+      <Navbar currentPage="leads" />
 
       {/* Header Section */}
       <div className="max-w-6xl mx-auto px-6 py-8">

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import { screenshotOperations } from '@/lib/database'
+import { screenshotOperations, leadOperations } from '@/lib/database'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -117,6 +117,41 @@ export async function POST(request: NextRequest) {
       console.log('Parsed results:', parsedResults)
       console.log('Leads found:', parsedResults.leads?.length || 0)
       
+      // Smart merge for Pipeline leads (preserve manual data, update conversation)
+      const leadsToCreate = []
+      const mergedLeads = []
+      
+      if (parsedResults.leads && Array.isArray(parsedResults.leads)) {
+        for (const lead of parsedResults.leads) {
+          // Check if lead exists in Pipeline (status = 'active')
+          const existingLead = leadOperations.findExistingForMerge(lead.name, lead.phone)
+          
+          if (existingLead && existingLead.status === 'active') {
+            // Smart merge: preserve manual data, update conversation
+            leadOperations.smartMerge(existingLead.id!, {
+              last_message: lead.lastMessage,
+              last_message_from: lead.lastMessageFrom,
+              timestamp: lead.timestamp,
+              lead_score: lead.leadScore,
+              platform: parsedResults.platform
+            })
+            
+            mergedLeads.push({
+              ...lead,
+              id: existingLead.id,
+              merged: true,
+              preservedFollowup: existingLead.next_followup_date,
+              preservedAttempts: existingLead.contact_attempts
+            })
+            
+            console.log(`Smart merged lead: ${lead.name} (preserved follow-up data)`)
+          } else {
+            // No existing Pipeline lead, add to creation list
+            leadsToCreate.push(lead)
+          }
+        }
+      }
+      
       // Save screenshot to database
       const screenshotResult = screenshotOperations.create(
         file.name,
@@ -127,10 +162,14 @@ export async function POST(request: NextRequest) {
       
       const responseData = {
         ...parsedResults,
-        extractedLeads: parsedResults.leads || [],
-        totalExtracted: parsedResults.leads ? parsedResults.leads.length : 0,
+        extractedLeads: leadsToCreate, // Only new leads for review
+        mergedLeads: mergedLeads, // Leads that were smart-merged to Pipeline
+        totalExtracted: leadsToCreate.length,
+        totalMerged: mergedLeads.length,
         screenshotId: screenshotId,
-        message: 'Leads extracted successfully. Review them before saving.'
+        message: mergedLeads.length > 0 
+          ? `${leadsToCreate.length} new leads extracted, ${mergedLeads.length} Pipeline leads updated`
+          : 'Leads extracted successfully. Review them before saving.'
       }
       
       console.log('Final response data:', responseData)

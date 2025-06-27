@@ -1,22 +1,11 @@
 import ScreenshotUpload from '@/components/ScreenshotUpload'
-import { Button } from '@/components/ui/button'
-import Link from 'next/link'
+import FollowupBanner from '@/components/FollowupBanner'
+import Navbar from '@/components/Navbar'
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Navigation Bar */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-sky-400 to-blue-500 rounded-lg"></div>
-            <h1 className="text-xl font-semibold text-slate-900">Screenshot CRM</h1>
-          </div>
-          <Button asChild variant="outline">
-            <Link href="/leads">View Leads</Link>
-          </Button>
-        </div>
-      </nav>
+      <Navbar currentPage="home" />
 
       {/* Hero Section */}
       <div className="max-w-4xl mx-auto px-6 pt-16 pb-8">
@@ -36,6 +25,7 @@ export default function HomePage() {
           </p>
         </div>
         
+        <FollowupBanner />
         <ScreenshotUpload />
       </div>
     </div>

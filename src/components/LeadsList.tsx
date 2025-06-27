@@ -25,7 +25,10 @@ import {
   ExternalLink,
   ArrowRight,
   Archive,
-  RotateCcw
+  RotateCcw,
+  Calendar,
+  Bell,
+  UserCheck
 } from 'lucide-react'
 
 
@@ -44,6 +47,12 @@ interface Lead {
   screenshot_id?: number
   created_at: string
   updated_at?: string
+  // Follow-up system
+  next_followup_date?: string
+  followup_notes?: string
+  last_contact_attempt?: string
+  contact_attempts?: number
+  relationship_type?: string
 }
 
 
@@ -325,6 +334,56 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
       alert('Failed to update lead statuses')
     } finally {
       setUpdatingStatus(false)
+    }
+  }
+
+  // Follow-up functionality
+  const setFollowupDate = async (leadId: number, daysFromNow: number) => {
+    const followupDate = new Date()
+    followupDate.setDate(followupDate.getDate() + daysFromNow)
+    const dateString = followupDate.toISOString().split('T')[0]
+
+    try {
+      const response = await fetch(`/api/leads/${leadId}/followup`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          next_followup_date: dateString,
+          followup_notes: `Follow-up in ${daysFromNow} day${daysFromNow > 1 ? 's' : ''}`
+        })
+      })
+
+      if (response.ok) {
+        await fetchLeads() // Refresh the list
+        alert(`✅ Follow-up set for ${followupDate.toLocaleDateString()}`)
+      } else {
+        const error = await response.json()
+        alert(`Failed to set follow-up: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error setting follow-up:', error)
+      alert('Failed to set follow-up')
+    }
+  }
+
+  const logContactAttempt = async (leadId: number) => {
+    try {
+      const response = await fetch(`/api/leads/${leadId}/contact-attempt`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      })
+
+      if (response.ok) {
+        await fetchLeads() // Refresh the list
+        alert('✅ Contact attempt logged')
+      } else {
+        const error = await response.json()
+        alert(`Failed to log contact: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error logging contact attempt:', error)
+      alert('Failed to log contact attempt')
     }
   }
 
@@ -829,6 +888,89 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
                     </div>
                   </div>
                 )}
+
+                {/* Follow-up Section */}
+                <div className="space-y-3">
+                  <h4 className="font-medium text-slate-900 flex items-center gap-2 text-sm">
+                    <Calendar className="h-4 w-4" />
+                    Follow-up & Contact
+                  </h4>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-3">
+                    {/* Current follow-up status */}
+                    {lead.next_followup_date && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Bell className="h-4 w-4 text-blue-600" />
+                        <span className="text-blue-800">
+                          Next follow-up: {new Date(lead.next_followup_date).toLocaleDateString()}
+                        </span>
+                        {lead.followup_notes && (
+                          <span className="text-blue-600 text-xs">({lead.followup_notes})</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Contact attempts */}
+                    {lead.contact_attempts && lead.contact_attempts > 0 && (
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <UserCheck className="h-4 w-4" />
+                        <span>
+                          {lead.contact_attempts} contact attempt{lead.contact_attempts > 1 ? 's' : ''}
+                          {lead.last_contact_attempt && (
+                            <span> (last: {new Date(lead.last_contact_attempt).toLocaleDateString()})</span>
+                          )}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Quick follow-up buttons */}
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFollowupDate(lead.id, 1)}
+                        className="text-xs h-8 bg-white hover:bg-blue-50 border-blue-300"
+                      >
+                        Tomorrow
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFollowupDate(lead.id, 3)}
+                        className="text-xs h-8 bg-white hover:bg-blue-50 border-blue-300"
+                      >
+                        3 Days
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFollowupDate(lead.id, 7)}
+                        className="text-xs h-8 bg-white hover:bg-blue-50 border-blue-300"
+                      >
+                        1 Week
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFollowupDate(lead.id, 30)}
+                        className="text-xs h-8 bg-white hover:bg-blue-50 border-blue-300"
+                      >
+                        1 Month
+                      </Button>
+                    </div>
+
+                    {/* Contact attempt button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => logContactAttempt(lead.id)}
+                      className="w-full text-sm bg-green-50 hover:bg-green-100 border-green-300 text-green-700"
+                    >
+                      <UserCheck className="h-4 w-4 mr-2" />
+                      Mark as Contacted
+                    </Button>
+                  </div>
+                </div>
 
                 {/* Screenshot Source */}
                 {lead.screenshot_id && (

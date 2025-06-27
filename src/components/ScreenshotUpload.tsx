@@ -14,10 +14,13 @@ export default function ScreenshotUpload() {
   const [results, setResults] = useState<{
     error?: string;
     extractedLeads?: unknown[];
+    mergedLeads?: unknown[];
     totalExtracted?: number;
+    totalMerged?: number;
     suggestion?: string;
     details?: string;
     rawResponse?: string;
+    message?: string;
   } | null>(null)
   const [dragActive, setDragActive] = useState(false)
 
@@ -174,9 +177,9 @@ export default function ScreenshotUpload() {
             <CardDescription>
               {results.error 
                 ? 'There was an issue processing your screenshot'
-                : results.extractedLeads 
+                : results.message || (results.extractedLeads 
                   ? `Found ${results.totalExtracted || 0} leads ready for review`
-                  : 'No leads found in this screenshot'
+                  : 'No leads found in this screenshot')
               }
             </CardDescription>
           </CardHeader>
@@ -188,17 +191,48 @@ export default function ScreenshotUpload() {
                   <p className="text-red-600 text-sm mt-1">{results.suggestion}</p>
                 )}
               </div>
-            ) : results.extractedLeads && results.extractedLeads.length > 0 ? (
+            ) : (results.extractedLeads && results.extractedLeads.length > 0) || (results.mergedLeads && results.mergedLeads.length > 0) ? (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Badge className="bg-sky-100 text-sky-800">
-                    {results.totalExtracted || 0} Leads Extracted
-                  </Badge>
-                  <Button onClick={reviewLeads} className="bg-sky-600 hover:bg-sky-700">
-                    <Eye className="h-4 w-4 mr-2" />
-                    Review & Save Leads
-                  </Button>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex gap-2">
+                    {results.extractedLeads && results.extractedLeads.length > 0 && (
+                      <Badge className="bg-sky-100 text-sky-800">
+                        {results.totalExtracted || 0} New Leads
+                      </Badge>
+                    )}
+                    {results.mergedLeads && results.mergedLeads.length > 0 && (
+                      <Badge className="bg-green-100 text-green-800">
+                        {results.totalMerged || 0} Pipeline Updated
+                      </Badge>
+                    )}
+                  </div>
+                  {results.extractedLeads && results.extractedLeads.length > 0 && (
+                    <Button onClick={reviewLeads} className="bg-sky-600 hover:bg-sky-700">
+                      <Eye className="h-4 w-4 mr-2" />
+                      Review & Save Leads
+                    </Button>
+                  )}
                 </div>
+
+                {/* Show merged leads info */}
+                {results.mergedLeads && results.mergedLeads.length > 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <h4 className="font-medium text-green-800 mb-2">Pipeline Leads Updated:</h4>
+                    <div className="space-y-2">
+                      {(results.mergedLeads as Array<{name: string; preservedFollowup?: string; preservedAttempts?: number}>).slice(0, 3).map((lead, index: number) => (
+                        <div key={index} className="text-sm text-green-700">
+                          <span className="font-medium">{lead.name}</span>
+                          {lead.preservedFollowup && (
+                            <span className="ml-2 text-xs">(follow-up: {new Date(lead.preservedFollowup).toLocaleDateString()})</span>
+                          )}
+                        </div>
+                      ))}
+                      {results.mergedLeads.length > 3 && (
+                        <p className="text-sm text-green-600">+{results.mergedLeads.length - 3} more updated</p>
+                      )}
+                    </div>
+                  </div>
+                )}
                 
                 <div className="grid gap-3">
                   {(results.extractedLeads as Array<{name: string; phone?: string; lastMessage?: string; leadScore?: number}>).slice(0, 3).map((lead, index: number) => (
