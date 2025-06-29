@@ -66,7 +66,8 @@ export async function POST(request: Request) {
       conversation_history: conversation_history,
       status: 'active',  // All new leads start as active
       is_group_chat: leadData.isGroupChat || false,
-      screenshot_id: leadData.screenshotId
+      screenshot_id: leadData.screenshotId,
+      contact_type: 'lead'  // Default to 'lead' type
     })
     
     return NextResponse.json({ 

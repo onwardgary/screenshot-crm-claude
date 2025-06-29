@@ -9,7 +9,6 @@ import {
   MessageCircle, 
   Phone, 
   Star, 
-  Clock, 
   AlertCircle,
   CheckCircle2,
   HelpCircle,
@@ -53,14 +52,19 @@ interface Lead {
   last_contact_attempt?: string
   contact_attempts?: number
   relationship_type?: string
+  // Performance dashboard fields
+  contact_type?: 'lead' | 'contact'
+  conversion_date?: string
 }
 
 
 interface LeadsListProps {
   statusFilter?: string
+  contactTypeFilter?: 'lead' | 'contact'
+  showConvertButton?: boolean
 }
 
-export default function LeadsList({ statusFilter }: LeadsListProps) {
+export default function LeadsList({ statusFilter, contactTypeFilter, showConvertButton = false }: LeadsListProps) {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedLeads, setSelectedLeads] = useState<Set<number>>(new Set())
@@ -80,13 +84,17 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
       const url = statusFilter ? `/api/leads?status=${statusFilter}` : '/api/leads'
       const response = await fetch(url)
       const data = await response.json()
-      setLeads(data)
+      // Filter by contact type if specified
+      const filteredData = contactTypeFilter 
+        ? data.filter((lead: Lead) => lead.contact_type === contactTypeFilter)
+        : data
+      setLeads(filteredData)
     } catch (error) {
       console.error('Failed to fetch leads:', error)
     } finally {
       setLoading(false)
     }
-  }, [statusFilter])
+  }, [statusFilter, contactTypeFilter])
 
   useEffect(() => {
     fetchLeads()
@@ -387,6 +395,28 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
     }
   }
 
+  // Convert lead to contact
+  const convertToContact = async (leadId: number) => {
+    try {
+      const response = await fetch('/api/leads/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId })
+      })
+
+      if (response.ok) {
+        await fetchLeads() // Refresh the list
+        alert('✅ Lead converted to contact successfully!')
+      } else {
+        const error = await response.json()
+        alert(`Failed to convert lead: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Error converting lead:', error)
+      alert('Failed to convert lead to contact')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -568,6 +598,23 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
                     </Button>
                   )}
 
+                  {/* Convert Action Mobile - only for leads */}
+                  {showConvertButton && contactTypeFilter === 'lead' && (
+                    <Button
+                      onClick={() => {
+                        if (selectedLeads.size === 0) return
+                        const leadIds = Array.from(selectedLeads)
+                        Promise.all(leadIds.map(id => convertToContact(id)))
+                          .then(() => clearSelection())
+                      }}
+                      disabled={selectedLeads.size === 0}
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 h-11 px-3"
+                    >
+                      <UserCheck className="h-4 w-4" />
+                    </Button>
+                  )}
+
                   {/* Merge Action Mobile */}
                   <Button
                     onClick={handleMergeRequest}
@@ -662,6 +709,25 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
                       <RotateCcw className="h-4 w-4 mr-2" />
                     )}
                     Reactivate Selected
+                  </Button>
+                )}
+
+                {/* Convert Action - only for leads */}
+                {showConvertButton && contactTypeFilter === 'lead' && (
+                  <Button
+                    onClick={() => {
+                      if (selectedLeads.size === 0) return
+                      const leadIds = Array.from(selectedLeads)
+                      // Convert each selected lead
+                      Promise.all(leadIds.map(id => convertToContact(id)))
+                        .then(() => clearSelection())
+                    }}
+                    disabled={selectedLeads.size === 0}
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <UserCheck className="h-4 w-4 mr-2" />
+                    Convert to Contacts
                   </Button>
                 )}
 
@@ -821,8 +887,8 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
 
             {/* Collapsible Details */}
             {isExpanded && (
-              <CardContent className="pt-0 space-y-4">
-                {/* Last Message Section */}
+              <CardContent className="pt-0 space-y-5">
+                {/* Last Message Section - Always first for context */}
                 {lead.last_message && (
                   <div className="space-y-2">
                     <h4 className="font-medium text-slate-900 flex items-center gap-2 text-sm">
@@ -837,148 +903,256 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
                   </div>
                 )}
 
-
-                {/* Merged Leads Indicator */}
-                {lead.merged_from_ids && lead.merged_from_ids.length > 0 && (
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <GitMerge className="h-4 w-4" />
-                    <span>Merged from {lead.merged_from_ids.length} other lead{lead.merged_from_ids.length > 1 ? 's' : ''}</span>
-                  </div>
-                )}
-
-                {/* Notes */}
-                {lead.notes && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-slate-900 text-sm">Notes</h4>
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                      <p className="text-amber-800 text-sm">
-                        {lead.notes}
-                      </p>
+                {/* LEADS LAYOUT - Focus on evaluation and conversion */}
+                {contactTypeFilter === 'lead' && (
+                  <>
+                    {/* Lead Quality Section - Grouped evaluation data */}
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-slate-900 flex items-center gap-2 text-sm">
+                        <Star className="h-4 w-4" />
+                        Lead Quality
+                      </h4>
+                      
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-3">
+                        {/* Lead Score & Notes */}
+                        <div className="space-y-2">
+                          {lead.lead_score && (
+                            <div className="flex items-center gap-2">
+                              <Badge className={`${getLeadScoreColor(lead.lead_score)} flex items-center gap-1`}>
+                                <Star className="h-3 w-3" />
+                                {lead.lead_score}/10 Priority
+                              </Badge>
+                            </div>
+                          )}
+                          {lead.notes && (
+                            <p className="text-amber-800 text-sm">
+                              <strong>Notes:</strong> {lead.notes}
+                            </p>
+                          )}
+                          {/* Merged indicator in context */}
+                          {lead.merged_from_ids && lead.merged_from_ids.length > 0 && (
+                            <div className="flex items-center gap-2 text-sm text-amber-700">
+                              <GitMerge className="h-4 w-4" />
+                              <span>Consolidated from {lead.merged_from_ids.length} duplicate{lead.merged_from_ids.length > 1 ? 's' : ''}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                )}
 
-                {/* Follow-up Section */}
-                <div className="space-y-3">
-                  <h4 className="font-medium text-slate-900 flex items-center gap-2 text-sm">
-                    <Calendar className="h-4 w-4" />
-                    Follow-up & Contact
-                  </h4>
-                  
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-3">
-                    {/* Current follow-up status */}
-                    {lead.next_followup_date && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <Bell className="h-4 w-4 text-blue-600" />
-                        <span className="text-blue-800">
-                          Next follow-up: {new Date(lead.next_followup_date).toLocaleDateString()}
-                        </span>
-                        {lead.followup_notes && (
-                          <span className="text-blue-600 text-xs">({lead.followup_notes})</span>
+                    {/* Source Traceability */}
+                    {lead.screenshot_id && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-slate-900 flex items-center gap-2 text-sm">
+                          <Image className="h-4 w-4" />
+                          Source
+                        </h4>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewScreenshot(lead.screenshot_id!)}
+                          className="flex items-center gap-2 text-slate-600 hover:text-slate-800 border-slate-300 hover:border-slate-400"
+                        >
+                          <Image className="h-4 w-4" />
+                          View Original Screenshot
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Primary Action - Convert to Contact (Prominent) */}
+                    <div className="space-y-3 pt-2 border-t border-slate-200">
+                      <div className="flex flex-col gap-3">
+                        {showConvertButton && (
+                          <Button
+                            onClick={() => convertToContact(lead.id)}
+                            size="lg"
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3"
+                          >
+                            <UserCheck className="h-5 w-5 mr-2" />
+                            Convert to Active Contact
+                          </Button>
+                        )}
+                        
+                        {/* Secondary Action - Archive (Subtle) */}
+                        {statusFilter === 'active' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => updateLeadStatus(lead.id, 'archived')}
+                            disabled={updatingLeadId === lead.id}
+                            className="text-slate-600 hover:text-slate-700 border-slate-300"
+                          >
+                            {updatingLeadId === lead.id ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Archive className="h-4 w-4 mr-2" />
+                            )}
+                            Archive Lead
+                          </Button>
                         )}
                       </div>
-                    )}
+                    </div>
+                  </>
+                )}
 
-                    {/* Contact attempts */}
-                    {lead.contact_attempts && lead.contact_attempts > 0 && (
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                {/* CONTACTS LAYOUT - Focus on nurture and follow-up */}
+                {contactTypeFilter === 'contact' && (
+                  <>
+                    {/* Relationship Info */}
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-slate-900 flex items-center gap-2 text-sm">
                         <UserCheck className="h-4 w-4" />
-                        <span>
-                          {lead.contact_attempts} contact attempt{lead.contact_attempts > 1 ? 's' : ''}
-                          {lead.last_contact_attempt && (
-                            <span> (last: {new Date(lead.last_contact_attempt).toLocaleDateString()})</span>
-                          )}
-                        </span>
+                        Contact Relationship
+                      </h4>
+                      
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+                        {lead.conversion_date && (
+                          <div className="flex items-center gap-2 text-sm text-green-800">
+                            <Badge className="bg-green-100 text-green-800 border-green-300">
+                              Converted {new Date(lead.conversion_date).toLocaleDateString()}
+                            </Badge>
+                          </div>
+                        )}
+                        {lead.notes && (
+                          <p className="text-green-800 text-sm">
+                            <strong>Notes:</strong> {lead.notes}
+                          </p>
+                        )}
+                        {lead.merged_from_ids && lead.merged_from_ids.length > 0 && (
+                          <div className="flex items-center gap-2 text-sm text-green-700">
+                            <GitMerge className="h-4 w-4" />
+                            <span>Consolidated contact history</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Follow-up Management - Prominent for contacts */}
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-slate-900 flex items-center gap-2 text-sm">
+                        <Calendar className="h-4 w-4" />
+                        Follow-up Management
+                      </h4>
+                      
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
+                        {/* Current follow-up status */}
+                        {lead.next_followup_date && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Bell className="h-4 w-4 text-blue-600" />
+                            <span className="text-blue-800 font-medium">
+                              Next follow-up: {new Date(lead.next_followup_date).toLocaleDateString()}
+                            </span>
+                            {lead.followup_notes && (
+                              <span className="text-blue-600 text-xs">({lead.followup_notes})</span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Contact attempts */}
+                        {lead.contact_attempts && lead.contact_attempts > 0 && (
+                          <div className="flex items-center gap-2 text-sm text-slate-700">
+                            <UserCheck className="h-4 w-4" />
+                            <span>
+                              {lead.contact_attempts} contact attempt{lead.contact_attempts > 1 ? 's' : ''}
+                              {lead.last_contact_attempt && (
+                                <span> (last: {new Date(lead.last_contact_attempt).toLocaleDateString()})</span>
+                              )}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Quick follow-up scheduling */}
+                        <div>
+                          <p className="text-sm font-medium text-blue-800 mb-2">Schedule Follow-up:</p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setFollowupDate(lead.id, 1)}
+                              className="text-xs h-8 bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
+                            >
+                              Tomorrow
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setFollowupDate(lead.id, 3)}
+                              className="text-xs h-8 bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
+                            >
+                              3 Days
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setFollowupDate(lead.id, 7)}
+                              className="text-xs h-8 bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
+                            >
+                              1 Week
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setFollowupDate(lead.id, 30)}
+                              className="text-xs h-8 bg-white hover:bg-blue-50 border-blue-300 text-blue-700"
+                            >
+                              1 Month
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Contact tracking */}
+                        <Button
+                          onClick={() => logContactAttempt(lead.id)}
+                          size="sm"
+                          className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <UserCheck className="h-4 w-4 mr-2" />
+                          Log Contact Attempt
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Source Reference for contacts */}
+                    {lead.screenshot_id && (
+                      <div className="space-y-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewScreenshot(lead.screenshot_id!)}
+                          className="flex items-center gap-2 text-slate-500 hover:text-slate-700 border-slate-300 text-xs"
+                        >
+                          <Image className="h-3 w-3" />
+                          Original Screenshot
+                        </Button>
                       </div>
                     )}
 
-                    {/* Quick follow-up buttons */}
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setFollowupDate(lead.id, 1)}
-                        className="text-xs h-8 bg-white hover:bg-blue-50 border-blue-300"
-                      >
-                        Tomorrow
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setFollowupDate(lead.id, 3)}
-                        className="text-xs h-8 bg-white hover:bg-blue-50 border-blue-300"
-                      >
-                        3 Days
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setFollowupDate(lead.id, 7)}
-                        className="text-xs h-8 bg-white hover:bg-blue-50 border-blue-300"
-                      >
-                        1 Week
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setFollowupDate(lead.id, 30)}
-                        className="text-xs h-8 bg-white hover:bg-blue-50 border-blue-300"
-                      >
-                        1 Month
-                      </Button>
+                    {/* Secondary Action - Archive for contacts */}
+                    <div className="pt-2 border-t border-slate-200">
+                      {statusFilter === 'active' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => updateLeadStatus(lead.id, 'archived')}
+                          disabled={updatingLeadId === lead.id}
+                          className="text-slate-600 hover:text-slate-700 border-slate-300"
+                        >
+                          {updatingLeadId === lead.id ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Archive className="h-4 w-4 mr-2" />
+                          )}
+                          Archive Contact
+                        </Button>
+                      )}
                     </div>
-
-                    {/* Contact attempt button */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => logContactAttempt(lead.id)}
-                      className="w-full text-sm bg-green-50 hover:bg-green-100 border-green-300 text-green-700"
-                    >
-                      <UserCheck className="h-4 w-4 mr-2" />
-                      Mark as Contacted
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Screenshot Source */}
-                {lead.screenshot_id && (
-                  <div className="space-y-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewScreenshot(lead.screenshot_id!)}
-                      className="flex items-center gap-2 text-slate-600 hover:text-slate-800 border-slate-300 hover:border-slate-400"
-                    >
-                      <Image className="h-4 w-4" />
-                      View Source Screenshot
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  </>
                 )}
 
-                {/* Status Actions */}
-                <div className="flex flex-wrap gap-2">
-                  {/* Active Lead Actions */}
-                  {statusFilter === 'active' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => updateLeadStatus(lead.id, 'archived')}
-                      disabled={updatingLeadId === lead.id}
-                      className="flex items-center gap-2 text-slate-700 hover:text-slate-800 border-slate-300 hover:border-slate-400 hover:bg-slate-50"
-                    >
-                      {updatingLeadId === lead.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Archive className="h-4 w-4" />
-                      )}
-                      Archive
-                    </Button>
-                  )}
-
-                  {/* Archive Actions (archived leads) */}
-                  {(statusFilter === 'archived' || statusFilter === 'archived,merged') && (
+                {/* Archived items - simplified layout */}
+                {(statusFilter === 'archived' || statusFilter === 'archived,merged') && (
+                  <div className="pt-2 border-t border-slate-200">
                     <Button
                       variant="outline"
                       size="sm"
@@ -993,19 +1167,8 @@ export default function LeadsList({ statusFilter }: LeadsListProps) {
                       )}
                       Reactivate
                     </Button>
-                  )}
-                </div>
-
-                {/* Timestamps */}
-                <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    <span>Added: {new Date(lead.created_at).toLocaleDateString()}</span>
                   </div>
-                  {lead.timestamp && (
-                    <span>Last active: {lead.timestamp}</span>
-                  )}
-                </div>
+                )}
               </CardContent>
             )}
           </Card>

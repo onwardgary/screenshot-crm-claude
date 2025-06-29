@@ -3,10 +3,11 @@ import { leadOperations } from '@/lib/database'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const leadId = parseInt(params.id)
+    const resolvedParams = await params
+    const leadId = parseInt(resolvedParams.id)
     
     if (isNaN(leadId)) {
       return NextResponse.json(

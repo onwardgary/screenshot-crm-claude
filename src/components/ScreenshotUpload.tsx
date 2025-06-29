@@ -257,7 +257,7 @@ export default function ScreenshotUpload() {
                       </div>
                     </div>
                   ))}
-                  {results.extractedLeads.length > 3 && (
+                  {results.extractedLeads && results.extractedLeads.length > 3 && (
                     <p className="text-sm text-slate-600 text-center">
                       +{results.extractedLeads.length - 3} more lead{results.extractedLeads.length - 3 > 1 ? 's' : ''}
                     </p>

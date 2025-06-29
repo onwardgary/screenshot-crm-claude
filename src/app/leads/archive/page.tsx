@@ -3,10 +3,8 @@
 import { useEffect, useState } from 'react'
 import LeadsList from '@/components/LeadsList'
 import Navbar from '@/components/Navbar'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import Link from 'next/link'
-import { Upload, Archive, GitMerge, CheckCircle } from 'lucide-react'
+import { Archive, GitMerge, CheckCircle } from 'lucide-react'
 import { Lead } from '@/lib/database'
 
 export default function LeadArchivePage() {

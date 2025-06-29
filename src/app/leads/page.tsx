@@ -19,6 +19,7 @@ interface MergeSuggestion {
 
 export default function ActiveLeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
+  const [contacts, setContacts] = useState<Lead[]>([])
   const [mergeSuggestions, setMergeSuggestions] = useState<MergeSuggestion[]>([])
   const [showSuggestions, setShowSuggestions] = useState(true)
   const [showAllSuggestions, setShowAllSuggestions] = useState(false)
@@ -26,6 +27,7 @@ export default function ActiveLeadsPage() {
 
   useEffect(() => {
     fetchActiveLeads()
+    fetchContacts()
     fetchMergeSuggestions()
   }, [])
 
@@ -33,9 +35,21 @@ export default function ActiveLeadsPage() {
     try {
       const response = await fetch('/api/leads?status=active')
       const data = await response.json()
-      setLeads(data)
+      // Filter for leads only (not contacts)
+      setLeads(data.filter((lead: Lead) => lead.contact_type === 'lead'))
     } catch (error) {
       console.error('Failed to fetch active leads:', error)
+    }
+  }
+
+  const fetchContacts = async () => {
+    try {
+      const response = await fetch('/api/leads?status=active')
+      const data = await response.json()
+      // Filter for contacts only
+      setContacts(data.filter((lead: Lead) => lead.contact_type === 'contact'))
+    } catch (error) {
+      console.error('Failed to fetch contacts:', error)
     }
   }
 
@@ -78,6 +92,7 @@ export default function ActiveLeadsPage() {
         alert('✅ Leads merged successfully!')
         // Refresh data
         await fetchActiveLeads()
+        await fetchContacts()
         await fetchMergeSuggestions()
       } else {
         alert('❌ Failed to merge leads')
@@ -114,8 +129,7 @@ export default function ActiveLeadsPage() {
   const individualLeads = leads.filter(lead => !lead.is_group_chat)
   const highConfidenceSuggestions = mergeSuggestions.filter(s => s.confidence >= 90)
   const displayedSuggestions = showAllSuggestions ? mergeSuggestions : mergeSuggestions.slice(0, 3)
-  const needFollowUp = leads.filter(lead => lead.last_message_from === 'contact')
-  const highScoreLeads = leads.filter(lead => (lead.lead_score || 0) >= 8)
+  // Removed unused variables for cleaner performance dashboard
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -129,21 +143,22 @@ export default function ActiveLeadsPage() {
               <Users className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-slate-900">Active Leads</h1>
-              <p className="text-slate-600 text-lg">All your working leads in one place - manage follow-ups and track progress</p>
+              <h1 className="text-4xl font-bold text-slate-900">Performance Dashboard</h1>
+              <p className="text-slate-600 text-lg">Track your outreach activity and manage nurture pipeline</p>
             </div>
           </div>
           
-          {/* Stats Overview */}
+          {/* Performance KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white rounded-xl border p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600">Active Leads</p>
-                  <p className="text-2xl font-bold text-slate-900">{individualLeads.length}</p>
+                  <p className="text-sm font-medium text-slate-600">New Leads</p>
+                  <p className="text-2xl font-bold text-blue-600">{individualLeads.length}</p>
+                  <p className="text-xs text-slate-500">Extracted from screenshots</p>
                 </div>
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <Users className="h-5 w-5 text-green-600" />
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Users className="h-5 w-5 text-blue-600" />
                 </div>
               </div>
             </div>
@@ -151,11 +166,12 @@ export default function ActiveLeadsPage() {
             <div className="bg-white rounded-xl border p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600">Need Follow-up</p>
-                  <p className="text-2xl font-bold text-red-600">{needFollowUp.length}</p>
+                  <p className="text-sm font-medium text-slate-600">Active Contacts</p>
+                  <p className="text-2xl font-bold text-green-600">{contacts.length}</p>
+                  <p className="text-xs text-slate-500">Converted leads</p>
                 </div>
-                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="h-5 w-5 text-red-600" />
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="h-5 w-5 text-green-600" />
                 </div>
               </div>
             </div>
@@ -163,11 +179,12 @@ export default function ActiveLeadsPage() {
             <div className="bg-white rounded-xl border p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600">High Priority</p>
-                  <p className="text-2xl font-bold text-amber-600">{highScoreLeads.length}</p>
+                  <p className="text-sm font-medium text-slate-600">Need Follow-up</p>
+                  <p className="text-2xl font-bold text-red-600">{contacts.filter(c => c.last_message_from === 'contact').length}</p>
+                  <p className="text-xs text-slate-500">Contacts waiting</p>
                 </div>
-                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <Badge className="w-5 h-5 bg-amber-600" />
+                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
                 </div>
               </div>
             </div>
@@ -175,14 +192,12 @@ export default function ActiveLeadsPage() {
             <div className="bg-white rounded-xl border p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600">Merge Suggestions</p>
-                  <p className="text-2xl font-bold text-blue-600">{mergeSuggestions.length}</p>
-                  {highConfidenceSuggestions.length > 0 && (
-                    <p className="text-xs text-green-600">{highConfidenceSuggestions.length} high confidence</p>
-                  )}
+                  <p className="text-sm font-medium text-slate-600">Duplicates</p>
+                  <p className="text-2xl font-bold text-amber-600">{mergeSuggestions.length}</p>
+                  <p className="text-xs text-slate-500">Potential merges</p>
                 </div>
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <GitMerge className="h-5 w-5 text-blue-600" />
+                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                  <GitMerge className="h-5 w-5 text-amber-600" />
                 </div>
               </div>
             </div>
@@ -191,11 +206,14 @@ export default function ActiveLeadsPage() {
           {/* Quick Actions */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div className="flex flex-wrap items-center gap-3">
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                New Leads: {leads.length}
+              </Badge>
               <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                Active Leads
+                Active Contacts: {contacts.length}
               </Badge>
               <div className="text-sm text-slate-600">
-                Working leads ready for follow-up and conversion
+                Performance dashboard and nurture management
               </div>
             </div>
             <div className="flex gap-2">
@@ -364,7 +382,33 @@ export default function ActiveLeadsPage() {
           </Card>
         )}
         
-        <LeadsList statusFilter="active" />
+        {/* New Leads Section */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="text-2xl font-bold text-slate-900">New Leads ({leads.length})</h2>
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+              From Screenshots
+            </Badge>
+          </div>
+          <div className="bg-white rounded-xl border p-4">
+            <p className="text-slate-600 mb-4">Convert qualified leads to active contacts for nurturing</p>
+            <LeadsList statusFilter="active" contactTypeFilter="lead" showConvertButton={true} />
+          </div>
+        </div>
+
+        {/* Active Contacts Section */}
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="text-2xl font-bold text-slate-900">Active Contacts ({contacts.length})</h2>
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+              Nurture Pipeline
+            </Badge>
+          </div>
+          <div className="bg-white rounded-xl border p-4">
+            <p className="text-slate-600 mb-4">Manage follow-ups and track conversations</p>
+            <LeadsList statusFilter="active" contactTypeFilter="contact" showConvertButton={false} />
+          </div>
+        </div>
       </div>
     </div>
   )

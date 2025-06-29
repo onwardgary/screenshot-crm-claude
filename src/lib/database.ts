@@ -92,6 +92,18 @@ try {
   // Column already exists, ignore error
 }
 
+try {
+  db.exec(`ALTER TABLE leads ADD COLUMN contact_type TEXT DEFAULT 'lead'`)
+} catch {
+  // Column already exists, ignore error
+}
+
+try {
+  db.exec(`ALTER TABLE leads ADD COLUMN conversion_date DATE`)
+} catch {
+  // Column already exists, ignore error
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS screenshots (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,6 +146,9 @@ export interface Lead {
   last_contact_attempt?: string
   contact_attempts?: number
   relationship_type?: 'family' | 'friend' | 'stranger' | 'referral' | 'existing_customer'
+  // Performance dashboard fields
+  contact_type?: 'lead' | 'contact'
+  conversion_date?: string
 }
 
 // Lead operations
@@ -141,8 +156,8 @@ export const leadOperations = {
   // Insert a new lead
   create: (lead: Omit<Lead, 'id'>) => {
     const stmt = db.prepare(`
-      INSERT INTO leads (name, phone, platform, last_message, last_message_from, timestamp, conversation_summary, lead_score, notes, conversation_history, merged_from_ids, status, merged_into_id, is_group_chat, screenshot_id, next_followup_date, followup_notes, last_contact_attempt, contact_attempts, relationship_type)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO leads (name, phone, platform, last_message, last_message_from, timestamp, conversation_summary, lead_score, notes, conversation_history, merged_from_ids, status, merged_into_id, is_group_chat, screenshot_id, next_followup_date, followup_notes, last_contact_attempt, contact_attempts, relationship_type, contact_type, conversion_date)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     return stmt.run(
       lead.name,
@@ -164,7 +179,9 @@ export const leadOperations = {
       lead.followup_notes || null,
       lead.last_contact_attempt || null,
       lead.contact_attempts || 0,
-      lead.relationship_type || null
+      lead.relationship_type || null,
+      lead.contact_type || 'lead',
+      lead.conversion_date || null
     )
   },
 
@@ -425,7 +442,7 @@ export const leadOperations = {
   },
 
   // Log contact attempt
-  logContactAttempt: (id: number, attemptType?: string) => {
+  logContactAttempt: (id: number) => {
     const today = new Date().toISOString().split('T')[0]
     const stmt = db.prepare(`
       UPDATE leads 
