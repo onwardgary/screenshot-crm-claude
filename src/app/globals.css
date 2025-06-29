@@ -118,5 +118,85 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* Industry-grade design system enhancements */
+@layer components {
+  /* Lead card semantic colors */
+  .lead-card-priority-high {
+    @apply border-l-red-500 bg-red-50/30;
+  }
+  .lead-card-priority-medium {
+    @apply border-l-amber-500 bg-amber-50/30;
+  }
+  .lead-card-priority-low {
+    @apply border-l-slate-400 bg-slate-50/30;
+  }
+  .lead-card-contact {
+    @apply border-l-emerald-500 bg-emerald-50/30;
+  }
+  
+  /* Modern shadow system */
+  .card-elevation-1 {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  }
+  .card-elevation-2 {
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  }
+  .card-elevation-3 {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  }
+  
+  /* Micro-interactions */
+  .card-interactive {
+    @apply transition-all duration-200 ease-out;
+  }
+  .card-interactive:hover {
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    @apply transform scale-[1.01];
+  }
+  
+  /* Advanced typography scale */
+  .text-display {
+    @apply text-2xl font-bold tracking-tight;
+  }
+  .text-heading {
+    @apply text-lg font-semibold tracking-tight;
+  }
+  .text-subheading {
+    @apply text-base font-medium;
+  }
+  .text-body {
+    @apply text-sm;
+  }
+  .text-caption {
+    @apply text-xs font-medium;
+  }
+  .text-micro {
+    @apply text-xs text-muted-foreground;
+  }
+  
+  /* Status indicators */
+  .status-dot {
+    @apply inline-block w-2 h-2 rounded-full;
+  }
+  .status-hot {
+    @apply bg-red-500;
+  }
+  .status-warm {
+    @apply bg-amber-500;
+  }
+  .status-cold {
+    @apply bg-blue-500;
+  }
+  .status-converted {
+    @apply bg-emerald-500;
+  }
+  
+  /* Touch optimization */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
   }
 }

@@ -273,11 +273,50 @@ export default function LeadsList({ statusFilter, contactTypeFilter, showConvert
     )
   }
 
-  const getLeadScoreColor = (score?: number) => {
-    if (!score) return 'bg-slate-100 text-slate-700'
-    if (score >= 8) return 'bg-green-100 text-green-700'
-    if (score >= 6) return 'bg-yellow-100 text-yellow-700'
-    return 'bg-red-100 text-red-700'
+  // Industry-grade lead scoring with semantic meaning
+  const getLeadPriority = (score?: number, contactType?: string) => {
+    if (contactType === 'contact') {
+      return {
+        label: 'Active Contact',
+        color: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+        cardClass: 'lead-card-contact',
+        statusDot: 'status-converted'
+      }
+    }
+    
+    if (!score) {
+      return {
+        label: 'Unscored',
+        color: 'bg-slate-100 text-slate-600 border-slate-300',
+        cardClass: 'lead-card-priority-low',
+        statusDot: 'status-cold'
+      }
+    }
+    
+    if (score >= 8) {
+      return {
+        label: 'Hot Lead',
+        color: 'bg-red-100 text-red-800 border-red-300',
+        cardClass: 'lead-card-priority-high',
+        statusDot: 'status-hot'
+      }
+    }
+    
+    if (score >= 6) {
+      return {
+        label: 'Warm Lead', 
+        color: 'bg-amber-100 text-amber-800 border-amber-300',
+        cardClass: 'lead-card-priority-medium',
+        statusDot: 'status-warm'
+      }
+    }
+    
+    return {
+      label: 'Cold Lead',
+      color: 'bg-blue-100 text-blue-800 border-blue-300', 
+      cardClass: 'lead-card-priority-low',
+      statusDot: 'status-cold'
+    }
   }
 
   const handleViewScreenshot = (screenshotId: number) => {
@@ -773,18 +812,19 @@ export default function LeadsList({ statusFilter, contactTypeFilter, showConvert
         const platformInfo = getPlatformInfo(lead.platform)
         const isSelected = selectedLeads.has(lead.id)
         const isExpanded = expandedLeads.has(lead.id)
+        const priority = getLeadPriority(lead.lead_score, lead.contact_type)
         
         return (
           <Card 
             key={lead.id} 
-            className={`hover:shadow-md transition-all duration-200 border-l-4 ${
+            className={`card-interactive card-elevation-1 border-l-4 ${
               isSelected 
-                ? 'border-l-sky-600 bg-sky-50/30 ring-1 ring-sky-200' 
-                : 'border-l-sky-400'
+                ? 'ring-2 ring-blue-500/20 border-l-blue-600 bg-blue-50/30' 
+                : priority.cardClass
             }`}
           >
             {/* Compact Header - Always Visible */}
-            <CardHeader className="pb-2 sm:pb-3">
+            <CardHeader className="pb-3 sm:pb-4 space-y-0">
               {/* Mobile Layout */}
               <div className="block sm:hidden">
                 <div className="flex items-center gap-3 mb-2">
@@ -792,7 +832,7 @@ export default function LeadsList({ statusFilter, contactTypeFilter, showConvert
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => toggleLeadSelection(lead.id)}
-                    className="h-5 w-5 text-sky-600 focus:ring-sky-500 border-gray-300 rounded cursor-pointer flex-shrink-0"
+                    className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-slate-300 rounded cursor-pointer flex-shrink-0 touch-target"
                   />
                   <Avatar className="h-10 w-10 bg-gradient-to-r from-sky-400 to-blue-500 flex-shrink-0">
                     <AvatarFallback className="text-white font-medium text-sm">
@@ -800,11 +840,14 @@ export default function LeadsList({ statusFilter, contactTypeFilter, showConvert
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-base text-slate-900 truncate">{lead.name}</CardTitle>
+                    <div className="flex items-center gap-2 mb-1">
+                      <CardTitle className="text-heading text-slate-900 truncate">{lead.name}</CardTitle>
+                      <div className={`status-dot ${priority.statusDot}`}></div>
+                    </div>
                     {lead.phone && (
-                      <CardDescription className="flex items-center gap-1 text-xs">
+                      <CardDescription className="flex items-center gap-1 text-micro">
                         <Phone className="h-3 w-3 flex-shrink-0" />
-                        <span className="truncate">{lead.phone}</span>
+                        <span className="truncate font-mono">{lead.phone}</span>
                       </CardDescription>
                     )}
                   </div>
@@ -812,24 +855,22 @@ export default function LeadsList({ statusFilter, contactTypeFilter, showConvert
                     variant="ghost"
                     size="sm"
                     onClick={() => toggleLeadExpansion(lead.id)}
-                    className="h-8 w-8 p-0 flex-shrink-0"
+                    className="touch-target p-0 flex-shrink-0 hover:bg-slate-100 rounded-full transition-colors"
                   >
                     {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mt-2">
                   <div className="flex items-center gap-2">
-                    <Badge className={`${platformInfo.color} text-xs`}>
+                    <Badge className={`${platformInfo.color} text-caption px-2 py-1`}>
                       {platformInfo.name}
                     </Badge>
-                    {lead.lead_score && (
-                      <Badge className={`${getLeadScoreColor(lead.lead_score)} flex items-center gap-1 text-xs`}>
-                        <Star className="h-3 w-3" />
-                        {lead.lead_score}
-                      </Badge>
-                    )}
+                    <Badge className={`${priority.color} flex items-center gap-1 text-caption px-2 py-1`}>
+                      <Star className="h-3 w-3" />
+                      {priority.label}
+                    </Badge>
                   </div>
-                  <div className="text-xs">
+                  <div className="text-micro font-medium">
                     {getLastMessageStatus(lead.last_message_from, true)}
                   </div>
                 </div>
@@ -843,7 +884,7 @@ export default function LeadsList({ statusFilter, contactTypeFilter, showConvert
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleLeadSelection(lead.id)}
-                      className="h-4 w-4 text-sky-600 focus:ring-sky-500 border-gray-300 rounded cursor-pointer"
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded cursor-pointer touch-target"
                     />
                     <Avatar className="h-10 w-10 bg-gradient-to-r from-sky-400 to-blue-500">
                       <AvatarFallback className="text-white font-medium text-sm">
@@ -851,32 +892,35 @@ export default function LeadsList({ statusFilter, contactTypeFilter, showConvert
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <CardTitle className="text-lg text-slate-900">{lead.name}</CardTitle>
+                      <div className="flex items-center gap-3 mb-1">
+                        <CardTitle className="text-heading text-slate-900">{lead.name}</CardTitle>
+                        <div className={`status-dot ${priority.statusDot}`}></div>
+                      </div>
                       {lead.phone && (
-                        <CardDescription className="flex items-center gap-1 text-sm">
+                        <CardDescription className="flex items-center gap-2 text-body">
                           <Phone className="h-3 w-3" />
-                          {lead.phone}
+                          <span className="font-mono">{lead.phone}</span>
                         </CardDescription>
                       )}
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-3">
-                    <Badge className={platformInfo.color}>
+                  <div className="flex items-center gap-4">
+                    <Badge className={`${platformInfo.color} text-caption px-3 py-1`}>
                       {platformInfo.name}
                     </Badge>
-                    {lead.lead_score && (
-                      <Badge className={`${getLeadScoreColor(lead.lead_score)} flex items-center gap-1`}>
-                        <Star className="h-3 w-3" />
-                        {lead.lead_score}/10
-                      </Badge>
-                    )}
-                    {getLastMessageStatus(lead.last_message_from)}
+                    <Badge className={`${priority.color} flex items-center gap-2 text-caption px-3 py-1`}>
+                      <Star className="h-3 w-3" />
+                      {priority.label}
+                    </Badge>
+                    <div className="text-body font-medium">
+                      {getLastMessageStatus(lead.last_message_from)}
+                    </div>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => toggleLeadExpansion(lead.id)}
-                      className="h-8 w-8 p-0"
+                      className="touch-target p-0 hover:bg-slate-100 rounded-full transition-colors"
                     >
                       {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </Button>
@@ -885,20 +929,25 @@ export default function LeadsList({ statusFilter, contactTypeFilter, showConvert
               </div>
             </CardHeader>
 
-            {/* Collapsible Details */}
+            {/* Collapsible Details - Progressive Disclosure */}
             {isExpanded && (
-              <CardContent className="pt-0 space-y-5">
+              <CardContent className="pt-0 space-y-4 border-t border-slate-100">
                 {/* Last Message Section - Always first for context */}
                 {lead.last_message && (
                   <div className="space-y-2">
-                    <h4 className="font-medium text-slate-900 flex items-center gap-2 text-sm">
+                    <h4 className="text-subheading text-slate-900 flex items-center gap-2">
                       <MessageCircle className="h-4 w-4" />
                       Last Message
                     </h4>
-                    <div className="bg-slate-50 rounded-lg p-3 border-l-2 border-sky-200">
-                      <p className="text-slate-700 text-sm italic">
+                    <div className="bg-slate-50 rounded-lg p-3 border-l-3 border-slate-300">
+                      <p className="text-body text-slate-700 italic">
                         &ldquo;{lead.last_message}&rdquo;
                       </p>
+                      {lead.timestamp && (
+                        <p className="text-micro text-slate-500 mt-1">
+                          {new Date(lead.timestamp).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -916,14 +965,12 @@ export default function LeadsList({ statusFilter, contactTypeFilter, showConvert
                       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-3">
                         {/* Lead Score & Notes */}
                         <div className="space-y-2">
-                          {lead.lead_score && (
-                            <div className="flex items-center gap-2">
-                              <Badge className={`${getLeadScoreColor(lead.lead_score)} flex items-center gap-1`}>
-                                <Star className="h-3 w-3" />
-                                {lead.lead_score}/10 Priority
-                              </Badge>
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <Badge className={`${priority.color} flex items-center gap-1`}>
+                              <Star className="h-3 w-3" />
+                              {priority.label} {lead.lead_score ? `(${lead.lead_score}/10)` : ''}
+                            </Badge>
+                          </div>
                           {lead.notes && (
                             <p className="text-amber-800 text-sm">
                               <strong>Notes:</strong> {lead.notes}
@@ -961,16 +1008,17 @@ export default function LeadsList({ statusFilter, contactTypeFilter, showConvert
                     )}
 
                     {/* Primary Action - Convert to Contact (Prominent) */}
-                    <div className="space-y-3 pt-2 border-t border-slate-200">
+                    <div className="space-y-3 pt-3 border-t border-slate-200">
                       <div className="flex flex-col gap-3">
                         {showConvertButton && (
                           <Button
                             onClick={() => convertToContact(lead.id)}
                             size="lg"
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3"
+                            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium py-3 shadow-sm hover:shadow-md transition-all duration-200"
                           >
                             <UserCheck className="h-5 w-5 mr-2" />
                             Convert to Active Contact
+                            <ArrowRight className="h-4 w-4 ml-2" />
                           </Button>
                         )}
                         
@@ -981,7 +1029,7 @@ export default function LeadsList({ statusFilter, contactTypeFilter, showConvert
                             size="sm"
                             onClick={() => updateLeadStatus(lead.id, 'archived')}
                             disabled={updatingLeadId === lead.id}
-                            className="text-slate-600 hover:text-slate-700 border-slate-300"
+                            className="text-slate-500 hover:text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-colors"
                           >
                             {updatingLeadId === lead.id ? (
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
