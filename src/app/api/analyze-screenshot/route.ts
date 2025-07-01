@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const file = formData.get('screenshot') as File
+    const platformOverride = formData.get('platformOverride') as string | null
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -117,35 +118,7 @@ export async function POST(request: NextRequest) {
       console.log('Parsed results:', parsedResults)
       console.log('Activities found:', parsedResults.activities?.length || 0)
       
-      // Create activities from screenshot analysis
-      const activitiesCreated = []
-      
-      if (parsedResults.activities && Array.isArray(parsedResults.activities)) {
-        for (const activity of parsedResults.activities) {
-          // Create new activity record
-          const result = activityOperations.create({
-            screenshot_id: undefined, // Will be set after screenshot is saved
-            person_name: activity.person_name,
-            phone: activity.phone,
-            platform: parsedResults.platform,
-            message_content: activity.message_content,
-            message_from: activity.message_from,
-            timestamp: activity.timestamp,
-            activity_score: activity.activity_score,
-            notes: activity.notes,
-            is_group_chat: activity.is_group_chat || false
-          })
-          
-          activitiesCreated.push({
-            id: result.lastInsertRowid,
-            ...activity
-          })
-          
-          console.log(`Activity created: ${activity.person_name} on ${parsedResults.platform}`)
-        }
-      }
-      
-      // Save screenshot to database
+      // Save screenshot to database for future reference
       const screenshotResult = screenshotOperations.create(
         file.name,
         base64,
@@ -153,17 +126,17 @@ export async function POST(request: NextRequest) {
       )
       const screenshotId = screenshotResult.lastInsertRowid
       
-      // Update activities with screenshot_id
-      for (const activity of activitiesCreated) {
-        activityOperations.update(activity.id, { screenshot_id: screenshotId })
+      // Apply platform override if provided
+      if (platformOverride) {
+        parsedResults.platform = platformOverride.toLowerCase()
       }
       
+      // Return extracted data for user review (don't auto-save activities)
       const responseData = {
         ...parsedResults,
-        activitiesCreated: activitiesCreated,
-        totalActivities: activitiesCreated.length,
         screenshotId: screenshotId,
-        message: `${activitiesCreated.length} activities recorded from screenshot analysis`
+        totalActivities: parsedResults.activities?.length || 0,
+        message: `${parsedResults.activities?.length || 0} activities extracted for review`
       }
       
       console.log('Final response data:', responseData)

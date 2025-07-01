@@ -42,13 +42,13 @@ export default function ScreenshotUpload() {
       console.log('API Response:', data) // Debug log
       console.log('Extracted leads:', data.extractedLeads) // Debug log
       
-      if (data.extractedLeads && data.extractedLeads.length > 0) {
+      if ((data.extractedLeads && data.extractedLeads.length > 0) || (data.activities && data.activities.length > 0)) {
         // Store analysis data and redirect to review page
         sessionStorage.setItem('analysisData', JSON.stringify(data))
         router.push('/analyze')
       } else {
         // Show results if no leads found or error
-        console.log('No leads found, showing results') // Debug log
+        console.log('No activities found, showing results') // Debug log
         setResults(data)
       }
     } catch (error) {

@@ -1,4 +1,4 @@
-import ScreenshotUpload from '@/components/ScreenshotUpload'
+import MultiScreenshotUpload from '@/components/MultiScreenshotUpload'
 import FollowupBanner from '@/components/FollowupBanner'
 import Navbar from '@/components/Navbar'
 
@@ -26,7 +26,7 @@ export default function HomePage() {
         </div>
         
         <FollowupBanner />
-        <ScreenshotUpload />
+        <MultiScreenshotUpload />
       </div>
     </div>
   )

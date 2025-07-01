@@ -31,7 +31,10 @@ interface ExtractedLead {
 
 interface AnalysisResult {
   platform: string
-  leads: ExtractedLead[]
+  activities?: ExtractedLead[]
+  activitiesCreated?: ExtractedLead[]
+  leads?: ExtractedLead[]
+  totalActivities?: number
   totalNewLeads?: number
   totalDuplicates?: number
   totalUpdated?: number
@@ -53,11 +56,22 @@ function AnalyzePageContent() {
       try {
         const parsed = JSON.parse(decodeURIComponent(dataParam)) as AnalysisResult
         setAnalysisData(parsed)
-        // Add unique IDs and initialize edited leads
-        const leadsWithIds = parsed.leads.map((lead, index) => ({
-          ...lead,
+        // Add unique IDs and initialize edited leads - support both old and new structure
+        const leadsData = parsed.activities || parsed.leads || []
+        const leadsWithIds = leadsData.map((lead, index) => ({
+          // Map API field names to expected field names
           id: `lead-${index}`,
-          skip: lead.isGroupChat || false  // Auto-skip group chats
+          name: lead.person_name || lead.name || '',
+          phone: lead.phone || '',
+          platform: lead.platform || parsed.platform || '',
+          lastMessage: lead.message_content || lead.lastMessage || '',
+          lastMessageFrom: lead.message_from || lead.lastMessageFrom || '',
+          timestamp: lead.timestamp || '',
+          leadScore: lead.activity_score || lead.leadScore || 5,
+          notes: lead.notes || '',
+          isGroupChat: lead.is_group_chat || lead.isGroupChat || false,
+          groupWarning: lead.group_warning || lead.groupWarning || '',
+          skip: (lead.is_group_chat || lead.isGroupChat) || false  // Auto-skip group chats
         }))
         setEditedLeads(leadsWithIds)
       } catch (error) {
@@ -71,10 +85,22 @@ function AnalyzePageContent() {
         try {
           const parsed = JSON.parse(storedData) as AnalysisResult
           setAnalysisData(parsed)
-          const leadsWithIds = parsed.leads.map((lead, index) => ({
-            ...lead,
+          // Support both old and new structure
+          const leadsData = parsed.activities || parsed.leads || []
+          const leadsWithIds = leadsData.map((lead, index) => ({
+            // Map API field names to expected field names
             id: `lead-${index}`,
-            skip: lead.isGroupChat || false  // Auto-skip group chats
+            name: lead.person_name || lead.name || '',
+            phone: lead.phone || '',
+            platform: lead.platform || parsed.platform || '',
+            lastMessage: lead.message_content || lead.lastMessage || '',
+            lastMessageFrom: lead.message_from || lead.lastMessageFrom || '',
+            timestamp: lead.timestamp || '',
+            leadScore: lead.activity_score || lead.leadScore || 5,
+            notes: lead.notes || '',
+            isGroupChat: lead.is_group_chat || lead.isGroupChat || false,
+            groupWarning: lead.group_warning || lead.groupWarning || '',
+            skip: (lead.is_group_chat || lead.isGroupChat) || false  // Auto-skip group chats
           }))
           setEditedLeads(leadsWithIds)
         } catch {
@@ -108,39 +134,36 @@ function AnalyzePageContent() {
     try {
       const leadsToSave = editedLeads.filter(lead => !lead.skip)
       
-      // Convert leads to the format expected by the existing API
-      const leadsData = {
-        platform: analysisData?.platform || 'unknown',
-        leads: leadsToSave.map(lead => ({
-          name: lead.name,
-          phone: lead.phone,
-          lastMessage: lead.lastMessage,
-          lastMessageFrom: lead.lastMessageFrom,
-          timestamp: lead.timestamp,
-          leadScore: lead.leadScore,
-          notes: lead.notes
-        }))
-      }
+      // Convert leads to the format expected by the activities API
+      const activitiesData = leadsToSave.map(lead => ({
+        person_name: lead.name,
+        phone: lead.phone,
+        platform: lead.platform || analysisData?.platform || 'unknown',
+        message_content: lead.lastMessage,
+        message_from: lead.lastMessageFrom,
+        timestamp: lead.timestamp,
+        activity_score: lead.leadScore,
+        notes: lead.notes,
+        is_group_chat: lead.isGroupChat || false,
+        screenshot_id: analysisData?.screenshotId
+      }))
 
-      // Call the existing lead creation logic
-      for (const lead of leadsData.leads) {
-        const response = await fetch('/api/leads', {
+      // Call the activities API
+      for (const activity of activitiesData) {
+        const response = await fetch('/api/activities', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...lead,
-            screenshotId: analysisData?.screenshotId
-          })
+          body: JSON.stringify(activity)
         })
         
         if (!response.ok) {
-          throw new Error('Failed to save lead')
+          throw new Error('Failed to save activity')
         }
       }
 
       // Clear stored data and redirect
       sessionStorage.removeItem('analysisData')
-      router.push('/leads?success=true')
+      router.push('/activities?success=true')
     } catch (error) {
       console.error('Error saving leads:', error)
       alert('Failed to save leads. Please try again.')
@@ -186,9 +209,9 @@ function AnalyzePageContent() {
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
               <Upload className="h-8 w-8 text-slate-600" />
             </div>
-            <h3 className="text-xl font-semibold text-slate-900 mb-2">No leads to review</h3>
+            <h3 className="text-xl font-semibold text-slate-900 mb-2">No activities to review</h3>
             <p className="text-slate-600 text-center mb-6">
-              No leads were extracted from the screenshot, or the data is no longer available.
+              No activities were extracted from the screenshot, or the data is no longer available.
             </p>
             <Button onClick={() => router.push('/')} className="bg-sky-600 hover:bg-sky-700">
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -217,8 +240,8 @@ function AnalyzePageContent() {
               Back to Upload
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Review Extracted Leads</h1>
-              <p className="text-slate-600">Review and edit the leads extracted from your screenshot before saving them.</p>
+              <h1 className="text-2xl font-bold text-slate-900">Review Extracted Activities</h1>
+              <p className="text-slate-600">Review and edit the activities extracted from your screenshot before saving them.</p>
             </div>
           </div>
           
@@ -227,7 +250,7 @@ function AnalyzePageContent() {
               Platform: {analysisData.platform}
             </Badge>
             <span className="text-sm text-slate-600">
-              {activeLeads.length} leads to save ({editedLeads.length - activeLeads.length} skipped)
+              {activeLeads.length} activities to save ({editedLeads.length - activeLeads.length} skipped)
             </span>
           </div>
         </div>
@@ -287,9 +310,9 @@ function AnalyzePageContent() {
         {/* Leads Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Extracted Leads</CardTitle>
+            <CardTitle>Extracted Activities</CardTitle>
             <CardDescription>
-              Edit the information below or mark leads to skip. Only active leads will be saved to your CRM.
+              Edit the information below or mark activities to skip. Only active activities will be saved to your CRM.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -374,6 +397,24 @@ function AnalyzePageContent() {
                       
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Platform
+                        </label>
+                        <select
+                          value={lead.platform || analysisData?.platform || ''}
+                          onChange={(e) => updateLead(lead.id, 'platform', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-sm"
+                        >
+                          <option value="whatsapp">WhatsApp</option>
+                          <option value="instagram">Instagram</option>
+                          <option value="tiktok">TikTok</option>
+                          <option value="messenger">Messenger</option>
+                          <option value="telegram">Telegram</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
                           Lead Score (1-10)
                         </label>
                         <input
@@ -454,7 +495,7 @@ function AnalyzePageContent() {
             ) : (
               <Save className="h-4 w-4 mr-2" />
             )}
-            Save {activeLeads.length} Lead{activeLeads.length !== 1 ? 's' : ''} to CRM
+            Save {activeLeads.length} Activit{activeLeads.length !== 1 ? 'ies' : 'y'} to CRM
           </Button>
         </div>
       </div>
