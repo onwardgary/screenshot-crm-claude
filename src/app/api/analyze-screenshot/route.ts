@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import { screenshotOperations, leadOperations } from '@/lib/database'
+import { screenshotOperations, activityOperations } from '@/lib/database'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -34,20 +34,20 @@ export async function POST(request: NextRequest) {
         {
           role: "system",
           content: `You are an expert at analyzing social media conversation screenshots. 
-          Extract lead information and return ONLY valid JSON with this exact structure:
+          Extract activity information and return ONLY valid JSON with this exact structure:
           {
             "platform": "whatsapp|instagram|tiktok|messenger|other",
-            "leads": [
+            "activities": [
               {
-                "name": "contact name or username",
+                "person_name": "contact name or username",
                 "phone": "phone number if visible or null",
-                "lastMessage": "the last message content",
-                "lastMessageFrom": "user|contact",
+                "message_content": "the last message content",
+                "message_from": "user|contact",
                 "timestamp": "timestamp if visible or null",
-                "leadScore": 5,
+                "activity_score": 5,
                 "notes": "any important context",
-                "isGroupChat": true,
-                "groupWarning": "explanation why this appears to be a group chat"
+                "is_group_chat": true,
+                "group_warning": "explanation why this appears to be a group chat"
               }
             ]
           }
@@ -115,40 +115,33 @@ export async function POST(request: NextRequest) {
       const parsedResults = JSON.parse(cleanJson)
       
       console.log('Parsed results:', parsedResults)
-      console.log('Leads found:', parsedResults.leads?.length || 0)
+      console.log('Activities found:', parsedResults.activities?.length || 0)
       
-      // Smart merge for Pipeline leads (preserve manual data, update conversation)
-      const leadsToCreate = []
-      const mergedLeads = []
+      // Create activities from screenshot analysis
+      const activitiesCreated = []
       
-      if (parsedResults.leads && Array.isArray(parsedResults.leads)) {
-        for (const lead of parsedResults.leads) {
-          // Check if lead exists in Pipeline (status = 'active')
-          const existingLead = leadOperations.findExistingForMerge(lead.name, lead.phone)
+      if (parsedResults.activities && Array.isArray(parsedResults.activities)) {
+        for (const activity of parsedResults.activities) {
+          // Create new activity record
+          const result = activityOperations.create({
+            screenshot_id: undefined, // Will be set after screenshot is saved
+            person_name: activity.person_name,
+            phone: activity.phone,
+            platform: parsedResults.platform,
+            message_content: activity.message_content,
+            message_from: activity.message_from,
+            timestamp: activity.timestamp,
+            activity_score: activity.activity_score,
+            notes: activity.notes,
+            is_group_chat: activity.is_group_chat || false
+          })
           
-          if (existingLead && existingLead.status === 'active') {
-            // Smart merge: preserve manual data, update conversation
-            leadOperations.smartMerge(existingLead.id!, {
-              last_message: lead.lastMessage,
-              last_message_from: lead.lastMessageFrom,
-              timestamp: lead.timestamp,
-              lead_score: lead.leadScore,
-              platform: parsedResults.platform
-            })
-            
-            mergedLeads.push({
-              ...lead,
-              id: existingLead.id,
-              merged: true,
-              preservedFollowup: existingLead.next_followup_date,
-              preservedAttempts: existingLead.contact_attempts
-            })
-            
-            console.log(`Smart merged lead: ${lead.name} (preserved follow-up data)`)
-          } else {
-            // No existing Pipeline lead, add to creation list
-            leadsToCreate.push(lead)
-          }
+          activitiesCreated.push({
+            id: result.lastInsertRowid,
+            ...activity
+          })
+          
+          console.log(`Activity created: ${activity.person_name} on ${parsedResults.platform}`)
         }
       }
       
@@ -160,21 +153,22 @@ export async function POST(request: NextRequest) {
       )
       const screenshotId = screenshotResult.lastInsertRowid
       
+      // Update activities with screenshot_id
+      for (const activity of activitiesCreated) {
+        activityOperations.update(activity.id, { screenshot_id: screenshotId })
+      }
+      
       const responseData = {
         ...parsedResults,
-        extractedLeads: leadsToCreate, // Only new leads for review
-        mergedLeads: mergedLeads, // Leads that were smart-merged to Pipeline
-        totalExtracted: leadsToCreate.length,
-        totalMerged: mergedLeads.length,
+        activitiesCreated: activitiesCreated,
+        totalActivities: activitiesCreated.length,
         screenshotId: screenshotId,
-        message: mergedLeads.length > 0 
-          ? `${leadsToCreate.length} new leads extracted, ${mergedLeads.length} Pipeline leads updated`
-          : 'Leads extracted successfully. Review them before saving.'
+        message: `${activitiesCreated.length} activities recorded from screenshot analysis`
       }
       
       console.log('Final response data:', responseData)
       
-      // Return the extracted leads for review instead of automatically saving
+      // Return the created activities
       return NextResponse.json(responseData)
     } catch (parseError) {
       console.error('JSON parsing error:', parseError)
@@ -188,7 +182,7 @@ export async function POST(request: NextRequest) {
           analysisText.toLowerCase().includes("not contain")) {
         return NextResponse.json({
           platform: "unknown",
-          leads: [],
+          activities: [],
           error: "Could not parse AI response",
           suggestion: "The image may be unclear or not contain recognizable conversation data",
           details: "AI indicated the image content was not clear enough to extract conversation data",

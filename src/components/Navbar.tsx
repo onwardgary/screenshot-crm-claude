@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Upload, Menu, X } from 'lucide-react'
 
 interface NavbarProps {
-  currentPage?: 'home' | 'leads' | 'inbox' | 'pipeline' | 'archive'
+  currentPage?: 'home' | 'dashboard' | 'activities' | 'contacts' | 'leads' | 'archive'
   showLeadTabs?: boolean
 }
 
@@ -30,44 +30,51 @@ export default function Navbar({ currentPage = 'home', showLeadTabs = false }: N
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-4">
-            {showLeadTabs ? (
-              <>
-                <div className="flex items-center gap-1">
-                  <Button 
-                    asChild 
-                    variant={currentPage === 'leads' ? 'default' : 'outline'} 
-                    size="sm" 
-                    className={currentPage === 'leads' ? 'bg-green-100 text-green-800 hover:bg-green-200' : ''}
-                  >
-                    <Link href="/leads">Active</Link>
-                  </Button>
-                  <Button 
-                    asChild 
-                    variant={currentPage === 'archive' ? 'default' : 'outline'} 
-                    size="sm"
-                    className={currentPage === 'archive' ? 'bg-slate-100 text-slate-800 hover:bg-slate-200' : ''}
-                  >
-                    <Link href="/leads/archive">Archive</Link>
-                  </Button>
-                </div>
+            {currentPage === 'home' ? (
+              <div className="flex items-center gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/dashboard">Dashboard</Link>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/activities">Activities</Link>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/contacts">Contacts</Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button 
+                  asChild 
+                  variant={currentPage === 'dashboard' ? 'default' : 'outline'} 
+                  size="sm"
+                  className={currentPage === 'dashboard' ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' : ''}
+                >
+                  <Link href="/dashboard">Dashboard</Link>
+                </Button>
+                <Button 
+                  asChild 
+                  variant={currentPage === 'activities' ? 'default' : 'outline'} 
+                  size="sm"
+                  className={currentPage === 'activities' ? 'bg-orange-100 text-orange-800 hover:bg-orange-200' : ''}
+                >
+                  <Link href="/activities">Activities</Link>
+                </Button>
+                <Button 
+                  asChild 
+                  variant={currentPage === 'contacts' ? 'default' : 'outline'} 
+                  size="sm"
+                  className={currentPage === 'contacts' ? 'bg-green-100 text-green-800 hover:bg-green-200' : ''}
+                >
+                  <Link href="/contacts">Contacts</Link>
+                </Button>
                 <Button asChild className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700" size="sm">
                   <Link href="/">
                     <Upload className="w-4 h-4 mr-2" />
                     Upload
                   </Link>
                 </Button>
-              </>
-            ) : currentPage === 'home' ? (
-              <Button asChild variant="outline">
-                <Link href="/leads">View Leads</Link>
-              </Button>
-            ) : (
-              <Button asChild className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700">
-                <Link href="/">
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload Screenshot
-                </Link>
-              </Button>
+              </div>
             )}
           </div>
 
@@ -92,28 +99,55 @@ export default function Navbar({ currentPage = 'home', showLeadTabs = false }: N
         {isMobileMenuOpen && (
           <div className="md:hidden border-t bg-white/95 backdrop-blur-sm">
             <div className="px-2 pt-2 pb-3 space-y-1">
-              {showLeadTabs ? (
+              {currentPage === 'home' ? (
+                <div className="space-y-1">
+                  <Button asChild variant="ghost" className="w-full justify-start" size="sm">
+                    <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)}>
+                      📊 Dashboard
+                    </Link>
+                  </Button>
+                  <Button asChild variant="ghost" className="w-full justify-start" size="sm">
+                    <Link href="/activities" onClick={() => setIsMobileMenuOpen(false)}>
+                      📱 Activities
+                    </Link>
+                  </Button>
+                  <Button asChild variant="ghost" className="w-full justify-start" size="sm">
+                    <Link href="/contacts" onClick={() => setIsMobileMenuOpen(false)}>
+                      👥 Contacts
+                    </Link>
+                  </Button>
+                </div>
+              ) : (
                 <>
-                  {/* Lead tabs for mobile */}
                   <div className="space-y-1 mb-3">
                     <Button 
                       asChild 
-                      variant={currentPage === 'leads' ? 'default' : 'ghost'} 
-                      className={`w-full justify-start ${currentPage === 'leads' ? 'bg-green-100 text-green-800 hover:bg-green-200' : ''}`}
+                      variant={currentPage === 'dashboard' ? 'default' : 'ghost'} 
+                      className={`w-full justify-start ${currentPage === 'dashboard' ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' : ''}`}
                       size="sm"
                     >
-                      <Link href="/leads" onClick={() => setIsMobileMenuOpen(false)}>
-                        Active
+                      <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)}>
+                        📊 Dashboard
                       </Link>
                     </Button>
                     <Button 
                       asChild 
-                      variant={currentPage === 'archive' ? 'default' : 'ghost'} 
-                      className={`w-full justify-start ${currentPage === 'archive' ? 'bg-slate-100 text-slate-800 hover:bg-slate-200' : ''}`}
+                      variant={currentPage === 'activities' ? 'default' : 'ghost'} 
+                      className={`w-full justify-start ${currentPage === 'activities' ? 'bg-orange-100 text-orange-800 hover:bg-orange-200' : ''}`}
                       size="sm"
                     >
-                      <Link href="/leads/archive" onClick={() => setIsMobileMenuOpen(false)}>
-                        Archive
+                      <Link href="/activities" onClick={() => setIsMobileMenuOpen(false)}>
+                        📱 Activities
+                      </Link>
+                    </Button>
+                    <Button 
+                      asChild 
+                      variant={currentPage === 'contacts' ? 'default' : 'ghost'} 
+                      className={`w-full justify-start ${currentPage === 'contacts' ? 'bg-green-100 text-green-800 hover:bg-green-200' : ''}`}
+                      size="sm"
+                    >
+                      <Link href="/contacts" onClick={() => setIsMobileMenuOpen(false)}>
+                        👥 Contacts
                       </Link>
                     </Button>
                   </div>
@@ -126,39 +160,6 @@ export default function Navbar({ currentPage = 'home', showLeadTabs = false }: N
                       <Link href="/" onClick={() => setIsMobileMenuOpen(false)}>
                         <Upload className="w-4 h-4 mr-2" />
                         Upload Screenshot
-                      </Link>
-                    </Button>
-                  </div>
-                </>
-              ) : currentPage === 'home' ? (
-                <Button asChild variant="outline" className="w-full justify-start" size="sm">
-                  <Link href="/leads" onClick={() => setIsMobileMenuOpen(false)}>
-                    View Leads
-                  </Link>
-                </Button>
-              ) : (
-                <>
-                  <Button 
-                    asChild 
-                    className="w-full justify-start bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700" 
-                    size="sm"
-                  >
-                    <Link href="/" onClick={() => setIsMobileMenuOpen(false)}>
-                      <Upload className="w-4 h-4 mr-2" />
-                      Upload Screenshot
-                    </Link>
-                  </Button>
-                  
-                  {/* Additional mobile-only links */}
-                  <div className="pt-2 border-t border-slate-200 mt-2">
-                    <Button asChild variant="ghost" className="w-full justify-start text-slate-600" size="sm">
-                      <Link href="/leads" onClick={() => setIsMobileMenuOpen(false)}>
-                        Active Leads
-                      </Link>
-                    </Button>
-                    <Button asChild variant="ghost" className="w-full justify-start text-slate-600" size="sm">
-                      <Link href="/leads/archive" onClick={() => setIsMobileMenuOpen(false)}>
-                        Archive
                       </Link>
                     </Button>
                   </div>
