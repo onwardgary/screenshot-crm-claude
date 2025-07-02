@@ -5,15 +5,103 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const organized = searchParams.get('organized')
+    const search = searchParams.get('search')
+    const platforms = searchParams.get('platforms')?.split(',').filter(Boolean)
+    const temperatures = searchParams.get('temperatures')?.split(',').filter(Boolean)
+    const dateRange = searchParams.get('dateRange')
+    const excludeGroups = searchParams.get('excludeGroups') === 'true'
+    const hasPhone = searchParams.get('hasPhone')
+    const sort = searchParams.get('sort') || 'created_at'
+    const order = searchParams.get('order') || 'desc'
     
-    // If organized=false, return only unorganized activities
-    if (organized === 'false') {
-      const activities = activityOperations.getUnorganized()
-      return NextResponse.json(activities)
+    // Get all activities first
+    let activities = organized === 'false' 
+      ? activityOperations.getUnorganized()
+      : activityOperations.getAll()
+    
+    // Apply filters
+    if (search) {
+      const searchLower = search.toLowerCase()
+      activities = activities.filter(activity => 
+        activity.person_name.toLowerCase().includes(searchLower) ||
+        (activity.phone && activity.phone.toLowerCase().includes(searchLower)) ||
+        (activity.message_content && activity.message_content.toLowerCase().includes(searchLower)) ||
+        (activity.notes && activity.notes.toLowerCase().includes(searchLower))
+      )
     }
     
-    // Default: return all activities
-    const activities = activityOperations.getAll()
+    if (platforms && platforms.length > 0) {
+      activities = activities.filter(activity => 
+        platforms.includes(activity.platform.toLowerCase())
+      )
+    }
+    
+    if (temperatures && temperatures.length > 0) {
+      activities = activities.filter(activity => 
+        temperatures.includes(activity.temperature || 'warm')
+      )
+    }
+    
+    if (excludeGroups) {
+      activities = activities.filter(activity => !activity.is_group_chat)
+    }
+    
+    if (hasPhone === 'true') {
+      activities = activities.filter(activity => activity.phone)
+    } else if (hasPhone === 'false') {
+      activities = activities.filter(activity => !activity.phone)
+    }
+    
+    // Apply date range filter
+    if (dateRange && dateRange !== 'all') {
+      const now = new Date()
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      
+      let startDate: Date
+      switch (dateRange) {
+        case 'today':
+          startDate = today
+          break
+        case 'week':
+          startDate = new Date(today)
+          startDate.setDate(today.getDate() - 7)
+          break
+        case 'month':
+          startDate = new Date(today)
+          startDate.setMonth(today.getMonth() - 1)
+          break
+        default:
+          startDate = new Date(0) // Beginning of time
+      }
+      
+      activities = activities.filter(activity => 
+        new Date(activity.created_at) >= startDate
+      )
+    }
+    
+    // Apply sorting
+    activities.sort((a, b) => {
+      let compareValue = 0
+      
+      switch (sort) {
+        case 'person_name':
+          compareValue = a.person_name.localeCompare(b.person_name)
+          break
+        case 'temperature':
+          const tempOrder = { 'hot': 3, 'warm': 2, 'cold': 1 }
+          const aTemp = tempOrder[a.temperature as keyof typeof tempOrder] || 2
+          const bTemp = tempOrder[b.temperature as keyof typeof tempOrder] || 2
+          compareValue = aTemp - bTemp
+          break
+        case 'created_at':
+        default:
+          compareValue = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          break
+      }
+      
+      return order === 'desc' ? -compareValue : compareValue
+    })
+    
     return NextResponse.json(activities)
   } catch (error) {
     console.error('Failed to fetch activities:', error)

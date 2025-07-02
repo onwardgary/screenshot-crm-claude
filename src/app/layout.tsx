@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Screenshot CRM",
-  description: "AI-powered lead extraction from screenshots",
+  title: "Activity Performance Dashboard",
+  description: "AI-powered activity tracking from conversation screenshots",
 };
 
 export default function RootLayout({

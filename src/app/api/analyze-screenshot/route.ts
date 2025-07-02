@@ -45,8 +45,7 @@ export async function POST(request: NextRequest) {
                 "message_content": "the last message content",
                 "message_from": "user|contact",
                 "timestamp": "timestamp if visible or null",
-                "activity_score": 5,
-                "notes": "any important context",
+                "temperature": "warm",
                 "is_group_chat": true,
                 "group_warning": "explanation why this appears to be a group chat"
               }
@@ -62,14 +61,18 @@ export async function POST(request: NextRequest) {
           - DETECT GROUP CHATS: Look for multiple participants, group names (Family, Work Team, etc.), or group indicators
           - Set isGroupChat to true if you detect group conversation patterns
           - Set groupWarning with reason like "Multiple participants detected" or "Group name suggests family/work group"
-          - Individual 1-on-1 conversations should have isGroupChat: false or null`
+          - Individual 1-on-1 conversations should have isGroupChat: false or null
+          - TEMPERATURE ASSESSMENT: Set temperature based on conversation quality:
+            * "hot" - Recent active conversation, person asking questions or showing strong interest
+            * "warm" - Normal conversation, some engagement, default for most interactions
+            * "cold" - Old messages, one-word responses, or minimal engagement`
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "Analyze this social media screenshot. If you can see any conversations, names, or contact information, extract them. If the image is unclear or you cannot identify conversations, return: {\"platform\": \"unknown\", \"leads\": [], \"error\": \"Could not identify clear conversation data\"}"
+              text: "Analyze this social media screenshot. If you can see any conversations, names, or contact information, extract them. If the image is unclear or you cannot identify conversations, return: {\"platform\": \"unknown\", \"activities\": [], \"error\": \"Could not identify clear conversation data\"}"
             },
             {
               type: "image_url",

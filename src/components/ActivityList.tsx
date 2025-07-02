@@ -26,7 +26,7 @@ interface Activity {
   message_content?: string
   message_from?: string
   timestamp?: string
-  activity_score?: number
+  temperature?: 'hot' | 'warm' | 'cold'
   notes?: string
   is_group_chat?: boolean
   contact_id?: number // Links to organized contact
@@ -36,19 +36,31 @@ interface Activity {
 
 interface ActivityListProps {
   organized?: boolean // true = show linked to contacts, false = show unorganized
+  filters?: any
 }
 
-export default function ActivityList({ organized = false }: ActivityListProps) {
+export default function ActivityList({ organized = false, filters = {} }: ActivityListProps) {
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedActivities, setSelectedActivities] = useState<Set<number>>(new Set())
 
   const fetchActivities = useCallback(async () => {
+    setLoading(true)
     try {
-      const url = organized 
-        ? `/api/activities` 
-        : `/api/activities?organized=false`
-      const response = await fetch(url)
+      const params = new URLSearchParams()
+      params.append('organized', organized ? 'true' : 'false')
+      
+      // Add filter parameters
+      if (filters.search) params.append('search', filters.search)
+      if (filters.platforms?.length > 0) params.append('platforms', filters.platforms.join(','))
+      if (filters.temperatures?.length > 0) params.append('temperatures', filters.temperatures.join(','))
+      if (filters.dateRange && filters.dateRange !== 'all') params.append('dateRange', filters.dateRange)
+      if (filters.excludeGroups) params.append('excludeGroups', 'true')
+      if (filters.hasPhone && filters.hasPhone !== 'all') params.append('hasPhone', filters.hasPhone)
+      if (filters.sort) params.append('sort', filters.sort)
+      if (filters.order) params.append('order', filters.order)
+      
+      const response = await fetch(`/api/activities?${params.toString()}`)
       const data = await response.json()
       setActivities(data)
     } catch (error) {
@@ -56,7 +68,7 @@ export default function ActivityList({ organized = false }: ActivityListProps) {
     } finally {
       setLoading(false)
     }
-  }, [organized])
+  }, [organized, filters])
 
   useEffect(() => {
     fetchActivities()
@@ -83,13 +95,17 @@ export default function ActivityList({ organized = false }: ActivityListProps) {
     }
   }
 
-  const getActivityScoreBadge = (score?: number) => {
-    if (!score) return null
-    
-    if (score >= 8) return <Badge className="bg-green-100 text-green-800">Hot</Badge>
-    if (score >= 6) return <Badge className="bg-yellow-100 text-yellow-800">Warm</Badge>
-    if (score >= 4) return <Badge className="bg-blue-100 text-blue-800">Cool</Badge>
-    return <Badge className="bg-gray-100 text-gray-800">Cold</Badge>
+  const getTemperatureBadge = (temperature?: string) => {
+    switch (temperature) {
+      case 'hot':
+        return <Badge className="bg-red-100 text-red-800">🔥 Hot</Badge>
+      case 'warm':
+        return <Badge className="bg-orange-100 text-orange-800">🌡️ Warm</Badge>
+      case 'cold':
+        return <Badge className="bg-blue-100 text-blue-800">❄️ Cold</Badge>
+      default:
+        return <Badge className="bg-orange-100 text-orange-800">🌡️ Warm</Badge>
+    }
   }
 
   if (loading) {
@@ -156,7 +172,7 @@ export default function ActivityList({ organized = false }: ActivityListProps) {
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  {getActivityScoreBadge(activity.activity_score)}
+                  {getTemperatureBadge(activity.temperature)}
                   {activity.is_group_chat && (
                     <Badge variant="secondary" className="bg-orange-100 text-orange-800">
                       <Users className="h-3 w-3 mr-1" />

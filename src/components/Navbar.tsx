@@ -6,11 +6,10 @@ import Link from 'next/link'
 import { Upload, Menu, X } from 'lucide-react'
 
 interface NavbarProps {
-  currentPage?: 'home' | 'dashboard' | 'activities' | 'contacts' | 'leads' | 'archive'
-  showLeadTabs?: boolean
+  currentPage?: 'home' | 'dashboard' | 'activities' | 'contacts'
 }
 
-export default function Navbar({ currentPage = 'home', showLeadTabs = false }: NavbarProps) {
+export default function Navbar({ currentPage = 'home' }: NavbarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   return (
@@ -21,10 +20,10 @@ export default function Navbar({ currentPage = 'home', showLeadTabs = false }: N
           <Link href="/" className="flex items-center space-x-2 flex-shrink-0">
             <div className="w-8 h-8 bg-gradient-to-r from-sky-400 to-blue-500 rounded-lg"></div>
             <h1 className="text-lg sm:text-xl font-semibold text-slate-900 hidden sm:block">
-              Screenshot CRM
+              Activity Dashboard
             </h1>
             <h1 className="text-lg font-semibold text-slate-900 sm:hidden">
-              CRM
+              Dashboard
             </h1>
           </Link>
 

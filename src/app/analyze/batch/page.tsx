@@ -36,7 +36,7 @@ interface Activity {
   message_content?: string
   message_from?: string
   timestamp?: string
-  activity_score?: number
+  temperature?: 'hot' | 'warm' | 'cold'
   notes?: string
   is_group_chat?: boolean
   group_warning?: string
@@ -134,7 +134,7 @@ export default function BatchAnalyzePage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...activity,
-            activity_score: activity.activity_score || 5
+            temperature: activity.temperature || 'warm'
           })
         })
         
@@ -403,20 +403,31 @@ export default function BatchAnalyzePage() {
                               </div>
                               
                               <div className="flex-1">
-                                <Label className="text-xs text-slate-500 flex items-center gap-1">
-                                  <TrendingUp className="w-3 h-3" />
-                                  Score
-                                </Label>
-                                <Input 
-                                  type="number"
-                                  min="1"
-                                  max="10"
-                                  value={activity.activity_score || 5}
-                                  onChange={(e) => updateActivity(index, { 
-                                    activity_score: parseInt(e.target.value) || 5 
-                                  })}
-                                  className="mt-1"
-                                />
+                                <Label className="text-xs text-slate-500">Temperature</Label>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-between mt-1">
+                                      <span className="capitalize flex items-center gap-1">
+                                        {activity.temperature === 'hot' && '🔥 Hot'}
+                                        {activity.temperature === 'warm' && '🌡️ Warm'}
+                                        {activity.temperature === 'cold' && '❄️ Cold'}
+                                        {!activity.temperature && '🌡️ Warm'}
+                                      </span>
+                                      <ChevronDown className="w-4 h-4 ml-2" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent className="w-full">
+                                    <DropdownMenuItem onClick={() => updateActivity(index, { temperature: 'hot' })}>
+                                      🔥 Hot
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => updateActivity(index, { temperature: 'warm' })}>
+                                      🌡️ Warm
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => updateActivity(index, { temperature: 'cold' })}>
+                                      ❄️ Cold
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
                             </div>
                             

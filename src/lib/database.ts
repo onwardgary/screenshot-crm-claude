@@ -15,7 +15,7 @@ db.exec(`
     message_content TEXT,
     message_from TEXT,
     timestamp TEXT,
-    activity_score INTEGER,
+    temperature TEXT DEFAULT 'warm', -- hot, warm, cold
     notes TEXT,
     is_group_chat BOOLEAN DEFAULT 0,
     contact_id INTEGER, -- Links to contacts table when organized
@@ -23,6 +23,13 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `)
+
+// Add temperature column to existing tables
+try {
+  db.exec(`ALTER TABLE activities ADD COLUMN temperature TEXT DEFAULT 'warm'`)
+} catch (e) {
+  // Column already exists
+}
 
 // Create contacts table (organized people/relationships)
 db.exec(`
@@ -65,7 +72,7 @@ export interface Activity {
   message_content?: string
   message_from?: string
   timestamp?: string
-  activity_score?: number
+  temperature?: 'hot' | 'warm' | 'cold'
   notes?: string
   is_group_chat?: boolean
   contact_id?: number // Links to organized contact
@@ -95,7 +102,7 @@ export const activityOperations = {
   // Create new activity from screenshot
   create: (activity: Omit<Activity, 'id'>) => {
     const stmt = db.prepare(`
-      INSERT INTO activities (screenshot_id, person_name, phone, platform, message_content, message_from, timestamp, activity_score, notes, is_group_chat, contact_id)
+      INSERT INTO activities (screenshot_id, person_name, phone, platform, message_content, message_from, timestamp, temperature, notes, is_group_chat, contact_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     return stmt.run(
@@ -106,7 +113,7 @@ export const activityOperations = {
       activity.message_content || null,
       activity.message_from || null,
       activity.timestamp || null,
-      activity.activity_score || null,
+      activity.temperature || 'warm',
       activity.notes || null,
       activity.is_group_chat ? 1 : 0,
       activity.contact_id || null
