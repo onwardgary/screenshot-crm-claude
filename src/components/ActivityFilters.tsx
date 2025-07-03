@@ -32,6 +32,7 @@ import {
 interface ActivityFiltersProps {
   onFiltersChange: (filters: FilterState) => void
   totalCount: number
+  filters: FilterState
   stats?: {
     hot: number
     warm: number
@@ -51,23 +52,14 @@ export interface FilterState {
   order: 'asc' | 'desc'
 }
 
-export default function ActivityFilters({ onFiltersChange, totalCount, stats }: ActivityFiltersProps) {
-  const [filters, setFilters] = useState<FilterState>({
-    search: '',
-    platforms: [],
-    temperatures: [],
-    dateRange: 'all',
-    excludeGroups: false,
-    hasPhone: 'all',
-    sort: 'created_at',
-    order: 'desc'
-  })
+export default function ActivityFilters({ onFiltersChange, totalCount, filters, stats }: ActivityFiltersProps) {
 
   const [isFilterOpen, setIsFilterOpen] = useState(false)
 
   const updateFilter = (key: keyof FilterState, value: any) => {
     const newFilters = { ...filters, [key]: value }
-    setFilters(newFilters)
+    console.log('🔧 ActivityFilters updating:', key, '=', value)
+    console.log('🔧 New filters:', newFilters)
     onFiltersChange(newFilters)
   }
 
@@ -82,7 +74,6 @@ export default function ActivityFilters({ onFiltersChange, totalCount, stats }: 
       sort: 'created_at',
       order: 'desc'
     }
-    setFilters(defaultFilters)
     onFiltersChange(defaultFilters)
   }
 
@@ -234,8 +225,10 @@ export default function ActivityFilters({ onFiltersChange, totalCount, stats }: 
             value={`${filters.sort}-${filters.order}`} 
             onValueChange={(value) => {
               const [sort, order] = value.split('-')
-              updateFilter('sort', sort)
-              updateFilter('order', order as 'asc' | 'desc')
+              const newFilters = { ...filters, sort, order: order as 'asc' | 'desc' }
+              console.log('🔧 Sort updating both:', { sort, order })
+              console.log('🔧 New filters:', newFilters)
+              onFiltersChange(newFilters)
             }}
           >
             <SelectTrigger className="w-full md:w-[180px]">

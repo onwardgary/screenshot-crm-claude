@@ -85,17 +85,17 @@ export async function GET(request: NextRequest) {
       
       switch (sort) {
         case 'person_name':
-          compareValue = a.person_name.localeCompare(b.person_name)
+          compareValue = (a.person_name || '').localeCompare(b.person_name || '')
           break
         case 'temperature':
           const tempOrder = { 'hot': 3, 'warm': 2, 'cold': 1 }
-          const aTemp = tempOrder[a.temperature as keyof typeof tempOrder] || 2
-          const bTemp = tempOrder[b.temperature as keyof typeof tempOrder] || 2
+          const aTemp = tempOrder[(a.temperature || 'warm') as keyof typeof tempOrder] || 2
+          const bTemp = tempOrder[(b.temperature || 'warm') as keyof typeof tempOrder] || 2
           compareValue = aTemp - bTemp
           break
         case 'created_at':
         default:
-          compareValue = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          compareValue = new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
           break
       }
       

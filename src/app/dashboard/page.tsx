@@ -59,19 +59,29 @@ export default function DashboardPage() {
     if (!analytics?.activityStreak) return 0
     
     let streak = 0
-    const today = new Date().toISOString().split('T')[0]
+    const today = new Date()
     const sortedDates = analytics.activityStreak.sort((a, b) => 
       new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime()
     )
     
-    for (let i = 0; i < sortedDates.length; i++) {
-      const date = sortedDates[i].activity_date
-      const expectedDate = new Date()
-      expectedDate.setDate(expectedDate.getDate() - i)
-      const expectedDateStr = expectedDate.toISOString().split('T')[0]
+    // Start from yesterday (or today if we have today's activity)
+    let currentDate = new Date(today)
+    const todayStr = today.toISOString().split('T')[0]
+    const hasToday = sortedDates.some(d => d.activity_date === todayStr && d.daily_count > 0)
+    
+    // If no activity today, start from yesterday
+    if (!hasToday) {
+      currentDate.setDate(currentDate.getDate() - 1)
+    }
+    
+    // Count backwards to find consecutive days
+    while (true) {
+      const dateStr = currentDate.toISOString().split('T')[0]
+      const dayActivity = sortedDates.find(d => d.activity_date === dateStr)
       
-      if (date === expectedDateStr && sortedDates[i].daily_count > 0) {
+      if (dayActivity && dayActivity.daily_count > 0) {
         streak++
+        currentDate.setDate(currentDate.getDate() - 1)
       } else {
         break
       }

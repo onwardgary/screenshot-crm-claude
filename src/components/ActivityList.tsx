@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { 
   MessageCircle, 
   Phone, 
@@ -14,7 +15,8 @@ import {
   ArrowRight,
   UserPlus,
   Users,
-  Activity
+  Activity,
+  Check
 } from 'lucide-react'
 
 interface Activity {
@@ -36,48 +38,48 @@ interface Activity {
 
 interface ActivityListProps {
   organized?: boolean // true = show linked to contacts, false = show unorganized
-  filters?: any
+  activities: Activity[]
+  loading?: boolean
+  onSelectionChange?: (selectedIds: number[]) => void
+  selectedIds?: number[]
 }
 
-export default function ActivityList({ organized = false, filters = {} }: ActivityListProps) {
-  const [activities, setActivities] = useState<Activity[]>([])
-  const [loading, setLoading] = useState(true)
+export default function ActivityList({ organized = false, activities, loading = false, onSelectionChange, selectedIds = [] }: ActivityListProps) {
   const [selectedActivities, setSelectedActivities] = useState<Set<number>>(new Set())
 
-  const fetchActivities = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams()
-      params.append('organized', organized ? 'true' : 'false')
-      
-      // Add filter parameters
-      if (filters.search) params.append('search', filters.search)
-      if (filters.platforms?.length > 0) params.append('platforms', filters.platforms.join(','))
-      if (filters.temperatures?.length > 0) params.append('temperatures', filters.temperatures.join(','))
-      if (filters.dateRange && filters.dateRange !== 'all') params.append('dateRange', filters.dateRange)
-      if (filters.excludeGroups) params.append('excludeGroups', 'true')
-      if (filters.hasPhone && filters.hasPhone !== 'all') params.append('hasPhone', filters.hasPhone)
-      if (filters.sort) params.append('sort', filters.sort)
-      if (filters.order) params.append('order', filters.order)
-      
-      const response = await fetch(`/api/activities?${params.toString()}`)
-      const data = await response.json()
-      setActivities(data)
-    } catch (error) {
-      console.error('Failed to fetch activities:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [organized, filters])
-
+  // Sync selectedActivities with external selectedIds
   useEffect(() => {
-    fetchActivities()
-  }, [fetchActivities])
+    setSelectedActivities(new Set(selectedIds))
+  }, [selectedIds])
 
   const handleOrganizeActivity = async (activityId: number) => {
     // For now, just show that it's being organized
     // Later we'll add a modal to create/link to contact
     console.log('Organizing activity:', activityId)
+  }
+
+  const toggleSelection = (activityId: number) => {
+    const newSelected = new Set(selectedActivities)
+    if (newSelected.has(activityId)) {
+      newSelected.delete(activityId)
+    } else {
+      newSelected.add(activityId)
+    }
+    setSelectedActivities(newSelected)
+    onSelectionChange?.(Array.from(newSelected))
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedActivities.size === activities.length && activities.length > 0) {
+      // Deselect all
+      setSelectedActivities(new Set())
+      onSelectionChange?.([])
+    } else {
+      // Select all
+      const allIds = new Set(activities.map(a => a.id))
+      setSelectedActivities(allIds)
+      onSelectionChange?.(Array.from(allIds))
+    }
   }
 
   const getPlatformIcon = (platform: string) => {
@@ -139,20 +141,47 @@ export default function ActivityList({ organized = false, filters = {} }: Activi
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">
-          {organized ? 'Organized Activities' : 'Unorganized Activities'}
-        </h2>
+        <div className="flex items-center gap-3">
+          {!organized && activities.length > 0 && (
+            <Checkbox
+              checked={selectedActivities.size === activities.length}
+              onCheckedChange={toggleSelectAll}
+              aria-label="Select all activities"
+            />
+          )}
+          <h2 className="text-xl font-semibold">
+            {organized ? 'Organized Activities' : 'Unorganized Activities'}
+          </h2>
+        </div>
         <div className="text-sm text-muted-foreground">
-          {activities.length} {activities.length === 1 ? 'activity' : 'activities'}
+          {selectedActivities.size > 0 ? (
+            <span className="font-medium text-primary">
+              {selectedActivities.size} selected
+            </span>
+          ) : (
+            `${activities.length} ${activities.length === 1 ? 'activity' : 'activities'}`
+          )}
         </div>
       </div>
 
       <div className="grid gap-4">
         {activities.map((activity) => (
-          <Card key={activity.id} className="hover:shadow-md transition-shadow">
+          <Card 
+            key={activity.id} 
+            className={`hover:shadow-md transition-shadow ${
+              selectedActivities.has(activity.id) ? 'ring-2 ring-primary ring-offset-2' : ''
+            }`}
+          >
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-3">
+                  {!organized && (
+                    <Checkbox
+                      checked={selectedActivities.has(activity.id)}
+                      onCheckedChange={() => toggleSelection(activity.id)}
+                      aria-label={`Select ${activity.person_name}`}
+                    />
+                  )}
                   <Avatar className="h-10 w-10">
                     <AvatarFallback className="bg-blue-100 text-blue-600">
                       {activity.person_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}

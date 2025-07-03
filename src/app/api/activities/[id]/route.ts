@@ -9,9 +9,16 @@ export async function PUT(
     const id = parseInt(params.id)
     const updates = await request.json()
     
-    activityOperations.update(id, updates)
+    const result = activityOperations.update(id, updates)
     
-    return NextResponse.json({ message: 'Activity updated successfully' })
+    if (result.changes === 0) {
+      return NextResponse.json({ error: 'Activity not found' }, { status: 404 })
+    }
+    
+    return NextResponse.json({ 
+      message: 'Activity updated successfully',
+      changes: result.changes
+    })
   } catch (error) {
     console.error('Failed to update activity:', error)
     return NextResponse.json({ error: 'Failed to update activity' }, { status: 500 })
@@ -25,9 +32,16 @@ export async function DELETE(
   try {
     const id = parseInt(params.id)
     
-    activityOperations.delete(id)
+    const result = activityOperations.delete(id)
     
-    return NextResponse.json({ message: 'Activity deleted successfully' })
+    if (result.changes === 0) {
+      return NextResponse.json({ error: 'Activity not found' }, { status: 404 })
+    }
+    
+    return NextResponse.json({ 
+      message: 'Activity deleted successfully',
+      changes: result.changes
+    })
   } catch (error) {
     console.error('Failed to delete activity:', error)
     return NextResponse.json({ error: 'Failed to delete activity' }, { status: 500 })
