@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const organized = searchParams.get('organized')
     const search = searchParams.get('search')
+    const searchType = searchParams.get('searchType') || 'all'
     const platforms = searchParams.get('platforms')?.split(',').filter(Boolean)
     const temperatures = searchParams.get('temperatures')?.split(',').filter(Boolean)
     const dateRange = searchParams.get('dateRange')
@@ -19,15 +20,27 @@ export async function GET(request: NextRequest) {
       ? activityOperations.getUnorganized()
       : activityOperations.getAll()
     
-    // Apply filters
+    // Apply search filter
     if (search) {
       const searchLower = search.toLowerCase()
-      activities = activities.filter(activity => 
-        activity.person_name.toLowerCase().includes(searchLower) ||
-        (activity.phone && activity.phone.toLowerCase().includes(searchLower)) ||
-        (activity.message_content && activity.message_content.toLowerCase().includes(searchLower)) ||
-        (activity.notes && activity.notes.toLowerCase().includes(searchLower))
-      )
+      activities = activities.filter(activity => {
+        switch (searchType) {
+          case 'name':
+            return activity.person_name.toLowerCase().includes(searchLower)
+          case 'phone':
+            return activity.phone && activity.phone.toLowerCase().includes(searchLower)
+          case 'message':
+            return activity.message_content && activity.message_content.toLowerCase().includes(searchLower)
+          case 'notes':
+            return activity.notes && activity.notes.toLowerCase().includes(searchLower)
+          case 'all':
+          default:
+            return activity.person_name.toLowerCase().includes(searchLower) ||
+              (activity.phone && activity.phone.toLowerCase().includes(searchLower)) ||
+              (activity.message_content && activity.message_content.toLowerCase().includes(searchLower)) ||
+              (activity.notes && activity.notes.toLowerCase().includes(searchLower))
+        }
+      })
     }
     
     if (platforms && platforms.length > 0) {

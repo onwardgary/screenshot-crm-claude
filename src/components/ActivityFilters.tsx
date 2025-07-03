@@ -43,6 +43,7 @@ interface ActivityFiltersProps {
 
 export interface FilterState {
   search: string
+  searchType: 'all' | 'name' | 'phone' | 'message' | 'notes'
   platforms: string[]
   temperatures: string[]
   dateRange: string
@@ -66,6 +67,7 @@ export default function ActivityFilters({ onFiltersChange, totalCount, filters, 
   const clearFilters = () => {
     const defaultFilters: FilterState = {
       search: '',
+      searchType: 'all',
       platforms: [],
       temperatures: [],
       dateRange: 'all',
@@ -82,7 +84,8 @@ export default function ActivityFilters({ onFiltersChange, totalCount, filters, 
     filters.temperatures.length > 0 || 
     filters.dateRange !== 'all' ||
     filters.excludeGroups ||
-    filters.hasPhone !== 'all'
+    filters.hasPhone !== 'all' ||
+    filters.searchType !== 'all'
 
   const togglePlatform = (platform: string) => {
     const newPlatforms = filters.platforms.includes(platform)
@@ -133,15 +136,32 @@ export default function ActivityFilters({ onFiltersChange, totalCount, filters, 
       {/* Search and Filter Bar */}
       <div className="bg-white rounded-lg border p-4 space-y-3">
         <div className="flex flex-col md:flex-row gap-3">
-          {/* Search Input */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Search by name, phone, or message..."
-              value={filters.search}
-              onChange={(e) => updateFilter('search', e.target.value)}
-              className="pl-9"
-            />
+          {/* Search Input with Type Selector */}
+          <div className="flex gap-2 flex-1">
+            <Select value={filters.searchType} onValueChange={(value) => updateFilter('searchType', value)}>
+              <SelectTrigger className="w-[120px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Fields</SelectItem>
+                <SelectItem value="name">Name Only</SelectItem>
+                <SelectItem value="phone">Phone Only</SelectItem>
+                <SelectItem value="message">Message Only</SelectItem>
+                <SelectItem value="notes">Notes Only</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                placeholder={`Search ${filters.searchType === 'all' ? 'across all fields' : 
+                  filters.searchType === 'name' ? 'by name' :
+                  filters.searchType === 'phone' ? 'by phone number' :
+                  filters.searchType === 'message' ? 'in messages' : 'in notes'}...`}
+                value={filters.search}
+                onChange={(e) => updateFilter('search', e.target.value)}
+                className="pl-9"
+              />
+            </div>
           </div>
 
           {/* Filter Dropdown */}
@@ -252,7 +272,10 @@ export default function ActivityFilters({ onFiltersChange, totalCount, filters, 
             <span className="text-sm text-muted-foreground">Active filters:</span>
             {filters.search && (
               <Badge variant="secondary">
-                Search: {filters.search}
+                {filters.searchType === 'all' ? 'Search' : 
+                 filters.searchType === 'name' ? 'Name' :
+                 filters.searchType === 'phone' ? 'Phone' :
+                 filters.searchType === 'message' ? 'Message' : 'Notes'}: {filters.search}
                 <button
                   onClick={() => updateFilter('search', '')}
                   className="ml-1 hover:text-destructive"

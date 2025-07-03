@@ -13,6 +13,7 @@ import { analyzeActivities } from '@/lib/smartDetection'
 export default function ActivitiesPage() {
   const [filters, setFilters] = useState<FilterState>({
     search: '',
+    searchType: 'all',
     platforms: [],
     temperatures: [],
     dateRange: 'all',
@@ -51,7 +52,10 @@ export default function ActivitiesPage() {
       const params = new URLSearchParams()
       params.append('organized', 'false')
       
-      if (filters.search) params.append('search', filters.search)
+      if (filters.search) {
+        params.append('search', filters.search)
+        params.append('searchType', filters.searchType)
+      }
       if (filters.platforms?.length > 0) params.append('platforms', filters.platforms.join(','))
       if (filters.temperatures?.length > 0) params.append('temperatures', filters.temperatures.join(','))
       if (filters.dateRange && filters.dateRange !== 'all') params.append('dateRange', filters.dateRange)
