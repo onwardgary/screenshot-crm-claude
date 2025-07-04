@@ -6,9 +6,11 @@ import ActivityFilters, { FilterState } from '@/components/ActivityFilters'
 import BulkActionBar from '@/components/BulkActionBar'
 import OrganizeContactModal from '@/components/OrganizeContactModal'
 import ConvertContactsModal from '@/components/ConvertContactsModal'
+import SmartOrganizeModal from '@/components/SmartOrganizeModal'
 import Navbar from '@/components/Navbar'
 import { useToast } from '@/hooks/use-toast'
 import { analyzeActivities } from '@/lib/smartDetection'
+import { Wand2 } from 'lucide-react'
 
 export default function ActivitiesPage() {
   const [filters, setFilters] = useState<FilterState>({
@@ -28,6 +30,7 @@ export default function ActivitiesPage() {
   const [activitiesLoading, setActivitiesLoading] = useState(true)
   const [showOrganizeModal, setShowOrganizeModal] = useState(false)
   const [showConvertModal, setShowConvertModal] = useState(false)
+  const [showSmartOrganizeModal, setShowSmartOrganizeModal] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -113,11 +116,22 @@ export default function ActivitiesPage() {
       <Navbar currentPage="activities" />
       
       <div className="max-w-6xl mx-auto px-6 py-8 pb-24">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Unorganized Activities</h1>
-          <p className="text-slate-600">
-            Activities from screenshots that haven't been organized into contacts yet
-          </p>
+        <div className="mb-6 flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">Unorganized Activities</h1>
+            <p className="text-slate-600">
+              Activities from screenshots that haven't been organized into contacts yet
+            </p>
+          </div>
+          {stats?.total > 0 && (
+            <button
+              onClick={() => setShowSmartOrganizeModal(true)}
+              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 flex items-center gap-2 shadow-lg"
+            >
+              <Wand2 className="w-4 h-4" />
+              Smart Organize All
+            </button>
+          )}
         </div>
         
         <ActivityFilters 
@@ -168,6 +182,16 @@ export default function ActivitiesPage() {
         activities={selectedActivities}
         onSuccess={() => {
           setSelectedActivityIds([])
+          fetchActivities()
+          fetchStats()
+        }}
+      />
+
+      <SmartOrganizeModal
+        isOpen={showSmartOrganizeModal}
+        onClose={() => setShowSmartOrganizeModal(false)}
+        activities={activities}
+        onComplete={() => {
           fetchActivities()
           fetchStats()
         }}

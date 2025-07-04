@@ -278,22 +278,40 @@ GPT-4 Vision extracts activities in this format:
 3. **Targeted Search System**: Field-specific search (Name, Phone, Message, Notes)
 4. **React State Bug Fixes**: Resolved sorting dropdown race conditions
 5. **Visual UI Enhancements**: Color-coded buttons, progress tracking, animations
+6. **Smart Organize All Feature**: One-click automatic contact creation with intelligent grouping
+7. **Conditional Fuzzy Matching**: Phone numbers use exact matching, names use fuzzy matching
+8. **Phone Number Validation**: Prevents activities with different phone numbers from merging
+9. **Expandable Activity Details**: Shows individual person names for verification transparency
+10. **Toast System Consistency**: Removed redundant sonner dependency
 
 **Technical Changes:**
-- New components: `BulkActionBar`, `OrganizeContactModal`, `ConvertContactsModal`
-- Smart detection: `smartDetection.ts` with fuzzy matching algorithms
+- New components: `BulkActionBar`, `OrganizeContactModal`, `ConvertContactsModal`, `SmartOrganizeModal`
+- Smart detection: `smartDetection.ts` with fuzzy matching algorithms and phone number detection
 - Search filtering: Added `searchType` parameter for targeted results
 - State management: Fixed atomic updates in `ActivityFilters`
 - UI libraries: Added Framer Motion for animations
 - API improvements: Enhanced activity filtering with search type support
+- Phone compatibility: `isPhoneNumber()` function prevents false phone number similarities
+- Activity transparency: Expandable interface shows individual person names for verification
+- Levenshtein distance: Proper similarity algorithm for human names only
+
+**Smart Organize Algorithm:**
+1. Group activities by person name similarity
+2. Validate phone number compatibility (different phones = different people)
+3. Use fuzzy matching for names, exact matching for phone numbers
+4. Show expandable preview with individual activity details
+5. Create contacts with batch processing and error handling
 
 ### **🎯 Next Development Priorities:**
 
+**CRITICAL Priority:**
+1. **Fix Smart Organize Duplicate Contact Issue**: Smart organize creates new contacts instead of linking to existing ones - major database integrity flaw
+2. **Implement Existing Contact Detection**: Check existing contacts before creating new ones in smart organize
+
 **High Priority:**
-1. **Complete Contact Workflow**: Finish activity → contact conversion process
-2. **Activity Deduplication**: Smart merging across multiple screenshots
-3. **Remove Legacy Lead System**: Clean up old `/api/leads` routes and components
-4. **Batch Contact API**: Optimize individual API calls to batch operations
+3. **Complete Contact Workflow**: Finish activity → contact conversion process
+4. **Activity Deduplication**: Smart merging across multiple screenshots
+5. **Remove Legacy Lead System**: Clean up old `/api/leads` routes and components
 
 **Medium Priority:**
 5. **Mobile Optimization**: Touch gestures and responsive design improvements
@@ -315,12 +333,12 @@ GPT-4 Vision extracts activities in this format:
 - **Missing environment variables**: Ensure `OPENAI_API_KEY` is set in `.env.local`
 
 ### **Development Notes:**
-- Multi-select bulk actions with smart recommendations
-- Targeted search system with field-specific filtering
-- Atomic state updates prevent React race conditions
-- Framer Motion provides smooth animations
-- Smart detection uses fuzzy matching for merge/convert recommendations
-- Toast notifications provide professional user feedback
+- **Smart Organize Algorithm**: Phone number validation prevents false merges
+- **Conditional Fuzzy Matching**: `isPhoneNumber()` regex detects phone patterns for exact matching
+- **Activity Transparency**: Expandable cards show individual person names for verification
+- **Database Integrity**: CRITICAL ISSUE - Smart organize creates duplicates instead of linking to existing contacts
+- **Phone Compatibility**: Different phone numbers are never grouped together
+- **Toast System**: Consistent `useToast()` hook across all components
 
 ## File Structure
 
