@@ -31,6 +31,13 @@ export function fuzzyMatch(name1: string, name2: string): number {
     return 0 // Phone numbers must match exactly, no fuzzy matching
   }
   
+  // CRITICAL: Short names (≤2 characters) require exact match only
+  // This prevents "al" from matching "Singapore Rental" (contains "al")
+  const shortestName = n1.length < n2.length ? n1 : n2
+  if (shortestName.length <= 2) {
+    return 0 // Short names already handled by exact match above
+  }
+  
   // One name contains the other (e.g., "John" in "John Doe")
   if (n1.includes(n2) || n2.includes(n1)) return 0.8
   

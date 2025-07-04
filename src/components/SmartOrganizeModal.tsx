@@ -4,6 +4,12 @@ import { useState, useEffect } from 'react'
 import { X, Users, AlertCircle, CheckCircle, ArrowRight, ChevronDown, Maximize2, Minimize2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { findSimilarNames, fuzzyMatch } from '@/lib/smartDetection'
+
+interface ExistingContact {
+  id: number
+  name: string
+  phone?: string
+}
 import { useToast } from '@/hooks/use-toast'
 
 interface Activity {
@@ -23,6 +29,7 @@ interface ContactGroup {
   suggestedMerges?: string[]
   phone?: string
   temperature: string
+  existingContact?: ExistingContact // Will link to existing contact instead of creating new
 }
 
 interface Props {
@@ -38,16 +45,83 @@ export default function SmartOrganizeModal({ isOpen, onClose, activities, onComp
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [isProcessing, setIsProcessing] = useState(false)
+  const [existingContacts, setExistingContacts] = useState<ExistingContact[]>([])
   const { toast } = useToast()
 
   useEffect(() => {
     if (isOpen && activities.length > 0) {
-      analyzeActivities()
+      analyzeActivitiesWithContacts()
     }
   }, [isOpen, activities])
 
-  const analyzeActivities = async () => {
+  const analyzeActivitiesWithContacts = async () => {
     setIsAnalyzing(true)
+    
+    // First fetch existing contacts
+    const existingContactsData = await fetchExistingContactsSync()
+    
+    // Then analyze with the fresh data
+    analyzeActivities(existingContactsData)
+  }
+
+  const fetchExistingContactsSync = async (): Promise<ExistingContact[]> => {
+    try {
+      console.log('📡 Fetching existing contacts from /api/contacts...')
+      const response = await fetch('/api/contacts')
+      console.log('📡 Response status:', response.status, response.statusText)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const contacts = await response.json()
+      console.log('🔍 Fetched existing contacts:', contacts.length, contacts)
+      setExistingContacts(contacts)
+      return contacts
+    } catch (error) {
+      console.error('❌ Failed to fetch existing contacts:', error)
+      setExistingContacts([])
+      return []
+    }
+  }
+
+  const findExistingContact = (groupName: string, groupPhone?: string, contactsList?: ExistingContact[]): ExistingContact | undefined => {
+    const contactsToSearch = contactsList || existingContacts
+    console.log(`🔍 Looking for existing contact: "${groupName}" phone: "${groupPhone}"`)
+    console.log(`📊 Searching through ${contactsToSearch.length} existing contacts`)
+    
+    for (const contact of contactsToSearch) {
+      // Priority 1: Exact phone match (highest confidence)
+      if (groupPhone && contact.phone && groupPhone === contact.phone) {
+        console.log(`✅ Found phone match: ${contact.name} (ID: ${contact.id})`)
+        return contact
+      }
+
+      // Priority 2: Exact name match
+      if (contact.name.toLowerCase().trim() === groupName.toLowerCase().trim()) {
+        // Only if phone is compatible (same or one is missing)
+        if (!groupPhone || !contact.phone || groupPhone === contact.phone) {
+          console.log(`✅ Found exact name match: ${contact.name} (ID: ${contact.id})`)
+          return contact
+        }
+      }
+
+      // Priority 3: Fuzzy name match (only if no phone conflict)
+      const similarity = fuzzyMatch(groupName, contact.name)
+      if (similarity > 0.7) { // High confidence threshold for existing contact matching
+        // Only if phone is compatible
+        if (!groupPhone || !contact.phone || groupPhone === contact.phone) {
+          console.log(`✅ Found fuzzy match: "${groupName}" -> "${contact.name}" (similarity: ${similarity}, ID: ${contact.id})`)
+          return contact
+        }
+      }
+    }
+    
+    console.log(`❌ No existing contact found for: "${groupName}"`)
+    return undefined
+  }
+
+  const analyzeActivities = async (existingContactsData: ExistingContact[]) => {
     
     // Group activities by person name (case-insensitive)
     const groups = new Map<string, Activity[]>()
@@ -108,12 +182,16 @@ export default function SmartOrganizeModal({ isOpen, onClose, activities, onComp
       const similarNames = findSimilarNames(name, allNames, 0.6)
         .slice(0, 3)
       
+      // Check if this group matches an existing contact
+      const existingContact = findExistingContact(name, phone, existingContactsData)
+      
       groupArray.push({
         name,
         activities,
         suggestedMerges: similarNames.length > 0 ? similarNames : undefined,
         phone,
-        temperature
+        temperature,
+        existingContact
       })
     }
     
@@ -173,40 +251,57 @@ export default function SmartOrganizeModal({ isOpen, onClose, activities, onComp
     
     try {
       const selectedGroupData = contactGroups.filter(g => selectedGroups.has(g.name))
+      let linkedCount = 0
+      let createdCount = 0
       
-      // Create contacts for each selected group
+      // Process each selected group
       for (const group of selectedGroupData) {
-        // Create contact
-        const contactRes = await fetch('/api/contacts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: group.name,
-            phone: group.phone,
-            temperature: group.temperature,
-            notes: `Auto-organized from ${group.activities.length} activities`
+        let contactId: number
+        
+        if (group.existingContact) {
+          // Link to existing contact
+          console.log(`🔗 Linking "${group.name}" to existing contact: ${group.existingContact.name} (ID: ${group.existingContact.id})`)
+          contactId = group.existingContact.id
+          linkedCount++
+        } else {
+          // Create new contact
+          console.log(`➕ Creating new contact: "${group.name}"`)
+          const contactRes = await fetch('/api/contacts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: group.name,
+              phone: group.phone,
+              temperature: group.temperature,
+              notes: `Auto-organized from ${group.activities.length} activities`
+            })
           })
-        })
-        
-        if (!contactRes.ok) throw new Error('Failed to create contact')
-        
-        const contact = await contactRes.json()
+          
+          if (!contactRes.ok) throw new Error('Failed to create contact')
+          
+          const contact = await contactRes.json()
+          contactId = contact.id
+          createdCount++
+        }
         
         // Update all activities to link to this contact
         for (const activity of group.activities) {
           await fetch(`/api/activities/${activity.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contact_id: contact.id })
+            body: JSON.stringify({ contact_id: contactId })
           })
         }
       }
       
+      const totalActivities = selectedGroupData.reduce((sum, g) => sum + g.activities.length, 0)
+      let description = `Organized ${totalActivities} activities. `
+      if (createdCount > 0) description += `Created ${createdCount} new contacts. `
+      if (linkedCount > 0) description += `Linked to ${linkedCount} existing contacts.`
+      
       toast({
         title: "Successfully organized!",
-        description: `Created ${selectedGroups.size} contacts from ${
-          selectedGroupData.reduce((sum, g) => sum + g.activities.length, 0)
-        } activities.`
+        description: description.trim()
       })
       
       onComplete()
@@ -329,6 +424,16 @@ export default function SmartOrganizeModal({ isOpen, onClose, activities, onComp
                                   {group.temperature === 'cold' && '❄️'}
                                   {' '}{group.temperature}
                                 </span>
+                                {group.existingContact && (
+                                  <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs font-medium">
+                                    Link to: {group.existingContact.name}
+                                  </span>
+                                )}
+                                {!group.existingContact && (
+                                  <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs font-medium">
+                                    Create new
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -406,11 +511,18 @@ export default function SmartOrganizeModal({ isOpen, onClose, activities, onComp
           <div className="p-6 border-t bg-gray-50">
             <div className="flex justify-between items-center">
               <div className="text-sm text-gray-600">
-                {selectedGroups.size} contacts selected • {
-                  contactGroups
-                    .filter(g => selectedGroups.has(g.name))
-                    .reduce((sum, g) => sum + g.activities.length, 0)
-                } activities will be organized
+                {(() => {
+                  const selectedGroupData = contactGroups.filter(g => selectedGroups.has(g.name))
+                  const totalActivities = selectedGroupData.reduce((sum, g) => sum + g.activities.length, 0)
+                  const linkCount = selectedGroupData.filter(g => g.existingContact).length
+                  const createCount = selectedGroupData.filter(g => !g.existingContact).length
+                  
+                  let text = `${totalActivities} activities will be organized`
+                  if (createCount > 0) text += ` • ${createCount} new contacts`
+                  if (linkCount > 0) text += ` • ${linkCount} linked to existing`
+                  
+                  return text
+                })()}
               </div>
               <div className="flex gap-3">
                 <button
@@ -433,7 +545,30 @@ export default function SmartOrganizeModal({ isOpen, onClose, activities, onComp
                   ) : (
                     <>
                       <Users className="w-4 h-4" />
-                      Create {selectedGroups.size} Contacts
+                      <div className="flex flex-col items-center">
+                        <span className="text-base font-medium">
+                          Organize {(() => {
+                            const selectedGroupData = contactGroups.filter(g => selectedGroups.has(g.name))
+                            return selectedGroupData.reduce((sum, g) => sum + g.activities.length, 0)
+                          })()} activities
+                        </span>
+                        <span className="text-xs opacity-75">
+                          {(() => {
+                            const selectedGroupData = contactGroups.filter(g => selectedGroups.has(g.name))
+                            const createCount = selectedGroupData.filter(g => !g.existingContact).length
+                            const linkCount = selectedGroupData.filter(g => g.existingContact).length
+                            
+                            if (createCount > 0 && linkCount > 0) {
+                              return `${createCount} new • ${linkCount} linked`
+                            } else if (createCount > 0) {
+                              return `${createCount} new contacts`
+                            } else if (linkCount > 0) {
+                              return `${linkCount} linked`
+                            }
+                            return ''
+                          })()}
+                        </span>
+                      </div>
                     </>
                   )}
                 </button>

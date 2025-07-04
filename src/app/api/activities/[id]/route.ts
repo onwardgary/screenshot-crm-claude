@@ -25,6 +25,15 @@ export async function PUT(
   }
 }
 
+// Add PATCH handler for Smart Organize compatibility
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  // PATCH and PUT do the same thing for activity updates
+  return PUT(request, { params })
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
