@@ -8,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Progress } from '@/components/ui/progress'
-import { FileStack, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
+import { FileStack, CheckCircle2, XCircle, AlertCircle, Link } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { fetchExistingContacts, detectExistingContactForActivities, type ExistingContact, type ContactDetectionResult } from '@/lib/contactDetection'
 
 interface Activity {
   id: number
@@ -30,8 +31,10 @@ interface ConvertContactsModalProps {
 interface ConversionItem {
   activity: Activity
   selected: boolean
-  status: 'pending' | 'creating' | 'success' | 'error'
+  status: 'pending' | 'creating' | 'linking' | 'success' | 'error'
   message?: string
+  detectionResult?: ContactDetectionResult
+  existingContactId?: number
 }
 
 export default function ConvertContactsModal({
@@ -44,19 +47,35 @@ export default function ConvertContactsModal({
   const [relationshipType, setRelationshipType] = useState('stranger')
   const [isConverting, setIsConverting] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [existingContacts, setExistingContacts] = useState<ExistingContact[]>([])
   const { toast } = useToast()
 
   useEffect(() => {
     if (open && activities.length > 0) {
-      // Initialize conversion items
-      const items = activities.map(activity => ({
+      initializeConversions()
+    }
+  }, [open, activities])
+
+  const initializeConversions = async () => {
+    // Fetch existing contacts for detection
+    const existingContactsData = await fetchExistingContacts()
+    setExistingContacts(existingContactsData)
+
+    // Initialize conversion items with intelligent detection
+    const items = activities.map(activity => {
+      const detectionResult = detectExistingContactForActivities([activity], existingContactsData)
+      
+      return {
         activity,
         selected: !activity.is_group_chat, // Auto-exclude group chats
         status: 'pending' as const,
-      }))
-      setConversionItems(items)
-    }
-  }, [open, activities])
+        detectionResult,
+        existingContactId: detectionResult.existingContact?.id
+      }
+    })
+    
+    setConversionItems(items)
+  }
 
   const selectedCount = conversionItems.filter(item => item.selected).length
 
@@ -80,29 +99,45 @@ export default function ConvertContactsModal({
     for (let i = 0; i < itemsToConvert.length; i++) {
       const item = itemsToConvert[i]
       
-      // Update status to creating
-      setConversionItems(prev => prev.map(ci => 
-        ci.activity.id === item.activity.id 
-          ? { ...ci, status: 'creating' } 
-          : ci
-      ))
-
       try {
-        // Create contact
-        const contactResponse = await fetch('/api/contacts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: item.activity.person_name,
-            phone: item.activity.phone,
-            platforms: [item.activity.platform],
-            relationship_type: relationshipType,
-            notes: `Created from ${item.activity.platform} activity`
-          })
-        })
+        let contactId: number
+        let statusMessage: string
 
-        if (!contactResponse.ok) throw new Error('Failed to create contact')
-        const { id: contactId } = await contactResponse.json()
+        if (item.existingContactId) {
+          // Link to existing contact
+          setConversionItems(prev => prev.map(ci => 
+            ci.activity.id === item.activity.id 
+              ? { ...ci, status: 'linking' } 
+              : ci
+          ))
+
+          contactId = item.existingContactId
+          statusMessage = 'Linked to existing contact'
+        } else {
+          // Create new contact
+          setConversionItems(prev => prev.map(ci => 
+            ci.activity.id === item.activity.id 
+              ? { ...ci, status: 'creating' } 
+              : ci
+          ))
+
+          const contactResponse = await fetch('/api/contacts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: item.activity.person_name,
+              phone: item.activity.phone,
+              platforms: [item.activity.platform],
+              relationship_type: relationshipType,
+              notes: `Created from ${item.activity.platform} activity`
+            })
+          })
+
+          if (!contactResponse.ok) throw new Error('Failed to create contact')
+          const { id: newContactId } = await contactResponse.json()
+          contactId = newContactId
+          statusMessage = 'Contact created'
+        }
 
         // Link activity to contact
         await fetch(`/api/activities/${item.activity.id}`, {
@@ -114,7 +149,7 @@ export default function ConvertContactsModal({
         // Update status to success
         setConversionItems(prev => prev.map(ci => 
           ci.activity.id === item.activity.id 
-            ? { ...ci, status: 'success', message: 'Contact created' } 
+            ? { ...ci, status: 'success', message: statusMessage } 
             : ci
         ))
         successCount++
@@ -134,14 +169,23 @@ export default function ConvertContactsModal({
 
     // Show summary toast
     if (successCount > 0) {
+      const completedItems = conversionItems.filter(item => item.status === 'success')
+      const linkedCount = completedItems.filter(item => item.existingContactId).length
+      const createdCount = completedItems.filter(item => !item.existingContactId).length
+      
+      let description = `Successfully processed ${successCount} activities. `
+      if (createdCount > 0) description += `Created ${createdCount} new contacts. `
+      if (linkedCount > 0) description += `Linked ${linkedCount} to existing contacts. `
+      if (errorCount > 0) description += `(${errorCount} failed)`
+      
       toast({
         title: "Conversion complete",
-        description: `Successfully created ${successCount} contacts${errorCount > 0 ? ` (${errorCount} failed)` : ''}`
+        description: description.trim()
       })
     } else {
       toast({
         title: "Conversion failed",
-        description: "No contacts were created. Please try again.",
+        description: "No activities were processed. Please try again.",
         variant: "destructive"
       })
     }
@@ -190,6 +234,30 @@ export default function ConvertContactsModal({
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Detection Results Banner */}
+          {conversionItems.length > 0 && (() => {
+            const detectedItems = conversionItems.filter(item => item.detectionResult?.existingContact)
+            const newItems = conversionItems.filter(item => !item.detectionResult?.existingContact)
+            
+            if (detectedItems.length > 0) {
+              return (
+                <div className="p-4 rounded-lg border bg-blue-50 border-blue-200 text-blue-800">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-semibold mb-1">Intelligent Detection Results</p>
+                      <p className="text-sm">
+                        Found {detectedItems.length} existing contact matches out of {conversionItems.length} activities.
+                        {newItems.length > 0 && ` ${newItems.length} will create new contacts.`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+            return null
+          })()}
+
           {/* Relationship Type Selector */}
           <div>
             <Label htmlFor="relationship">Default Relationship Type for All</Label>
@@ -262,6 +330,19 @@ export default function ConvertContactsModal({
                               Group chat - not selected
                             </div>
                           )}
+                          {item.detectionResult?.existingContact && (
+                            <div className={`text-sm flex items-center gap-1 mt-1 ${
+                              item.detectionResult.confidence === 'high' 
+                                ? 'text-green-700' 
+                                : 'text-yellow-700'
+                            }`}>
+                              <Link className="w-3 h-3" />
+                              Will link to: {item.detectionResult.existingContact.name}
+                              <span className="text-xs opacity-75">
+                                ({item.detectionResult.confidence} confidence)
+                              </span>
+                            </div>
+                          )}
                           {item.message && (
                             <div className={`text-sm mt-1 ${
                               item.status === 'error' ? 'text-red-600' : 'text-green-600'
@@ -273,7 +354,16 @@ export default function ConvertContactsModal({
                       </div>
                       
                       <div className="text-sm text-muted-foreground">
-                        → New Contact
+                        {item.detectionResult?.existingContact ? (
+                          <span className="text-green-600 flex items-center gap-1">
+                            <Link className="w-3 h-3" />
+                            Link to existing
+                          </span>
+                        ) : (
+                          <span className="text-blue-600">
+                            → New Contact
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

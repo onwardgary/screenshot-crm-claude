@@ -10,8 +10,9 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { UserPlus, Link, Users, Phone, MessageCircle } from 'lucide-react'
+import { UserPlus, Link, Users, Phone, MessageCircle, AlertCircle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { fetchExistingContacts, detectExistingContactForActivities, type ExistingContact, type ContactDetectionResult } from '@/lib/contactDetection'
 
 interface Activity {
   id: number
@@ -45,6 +46,8 @@ export default function OrganizeContactModal({
   const [mode, setMode] = useState<'create' | 'link'>('create')
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(false)
+  const [detectionResult, setDetectionResult] = useState<ContactDetectionResult | null>(null)
+  const [existingContacts, setExistingContacts] = useState<ExistingContact[]>([])
   const { toast } = useToast()
 
   // Form states for create mode
@@ -58,30 +61,39 @@ export default function OrganizeContactModal({
 
   useEffect(() => {
     if (open && activities.length > 0) {
-      // Auto-fill from activities
-      const firstActivity = activities[0]
-      setName(firstActivity.person_name)
-      
-      // Find first phone number
-      const phoneActivity = activities.find(a => a.phone)
-      if (phoneActivity?.phone) {
-        setPhone(phoneActivity.phone)
-      }
-      
-      // Fetch existing contacts for link mode
-      fetchContacts()
+      initializeModal()
     }
   }, [open, activities])
 
-  const fetchContacts = async () => {
-    try {
-      const response = await fetch('/api/contacts')
-      const data = await response.json()
-      setContacts(data)
-    } catch (error) {
-      console.error('Failed to fetch contacts:', error)
+  const initializeModal = async () => {
+    // Auto-fill from activities
+    const firstActivity = activities[0]
+    setName(firstActivity.person_name)
+    
+    // Find first phone number
+    const phoneActivity = activities.find(a => a.phone)
+    if (phoneActivity?.phone) {
+      setPhone(phoneActivity.phone)
+    }
+    
+    // Fetch existing contacts for intelligent detection
+    const existingContactsData = await fetchExistingContacts()
+    setExistingContacts(existingContactsData)
+    setContacts(existingContactsData) // For backward compatibility with existing UI
+    
+    // Detect if there's an existing contact match
+    const detection = detectExistingContactForActivities(activities, existingContactsData)
+    setDetectionResult(detection)
+    
+    // Auto-suggest mode based on detection
+    if (detection.existingContact && detection.confidence === 'high') {
+      setMode('link')
+      setSelectedContactId(detection.existingContact.id)
+    } else {
+      setMode('create')
     }
   }
+
 
   const handleSubmit = async () => {
     setLoading(true)
@@ -177,6 +189,45 @@ export default function OrganizeContactModal({
             Combine multiple activities from the same person into a single contact
           </DialogDescription>
         </DialogHeader>
+
+        {/* Intelligent Detection Banner */}
+        {detectionResult?.existingContact && (
+          <div className={`p-4 rounded-lg border ${
+            detectionResult.confidence === 'high' 
+              ? 'bg-green-50 border-green-200 text-green-800'
+              : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+          }`}>
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold mb-1">
+                  {detectionResult.confidence === 'high' ? 'Existing Contact Found!' : 'Possible Match Found'}
+                </p>
+                <p className="text-sm">
+                  Found existing contact: <strong>{detectionResult.existingContact.name}</strong>
+                  {detectionResult.existingContact.phone && ` (${detectionResult.existingContact.phone})`}
+                </p>
+                <p className="text-xs mt-1 opacity-75">
+                  {detectionResult.reason} • {detectionResult.confidence} confidence
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {detectionResult && !detectionResult.existingContact && (
+          <div className="p-4 rounded-lg border bg-blue-50 border-blue-200 text-blue-800">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold mb-1">No Existing Contact Found</p>
+                <p className="text-sm">
+                  No similar contacts detected. A new contact will be created.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <Tabs value={mode} onValueChange={(v) => setMode(v as 'create' | 'link')}>
           <TabsList className="grid w-full grid-cols-2">
