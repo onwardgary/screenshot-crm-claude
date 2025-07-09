@@ -1,5 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { contactOperations } from '@/lib/database'
+import Database from 'better-sqlite3'
+import path from 'path'
+
+// Use the same database path as the main database module
+const dbPath = path.join(process.cwd(), 'sales-activity.db')
+
+// Enhanced function to get contacts with auto-calculated metrics
+function getContactsWithMetrics(contacts: any[]) {
+  // Create a separate database connection for this operation
+  const db = new Database(dbPath)
+  
+  try {
+    return contacts.map(contact => {
+      // Get activity count for this contact
+      const activityCountStmt = db.prepare('SELECT COUNT(*) as count FROM activities WHERE contact_id = ?')
+      const activityCount = activityCountStmt.get(contact.id) as { count: number }
+      
+      // Check for two-way communication (contact has replied)
+      const twoWayStmt = db.prepare('SELECT COUNT(*) as count FROM activities WHERE contact_id = ? AND message_from = ?')
+      const twoWayCount = twoWayStmt.get(contact.id, 'contact') as { count: number }
+      
+      // Get latest activity for temperature and last contact date
+      const latestActivityStmt = db.prepare('SELECT temperature, created_at FROM activities WHERE contact_id = ? ORDER BY created_at DESC LIMIT 1')
+      const latestActivity = latestActivityStmt.get(contact.id) as { temperature: string, created_at: string } | undefined
+      
+      return {
+        ...contact,
+        auto_contact_attempts: activityCount.count,
+        has_two_way_communication: twoWayCount.count > 0,
+        latest_temperature: latestActivity?.temperature || 'warm',
+        last_contact_date: latestActivity?.created_at || contact.last_contact_date
+      }
+    })
+  } finally {
+    // Clean up the database connection
+    db.close()
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,15 +51,8 @@ export async function GET(request: NextRequest) {
       contacts = contactOperations.getAll()
     }
     
-    // For now, return contacts without auto-calculated metrics to avoid database conflicts
-    // We'll add the metrics calculation later after ensuring it works
-    const enhancedContacts = contacts.map(contact => ({
-      ...contact,
-      auto_contact_attempts: contact.contact_attempts || 0,
-      has_two_way_communication: false, // Default for now
-      latest_temperature: 'warm', // Default for now
-      last_contact_date: contact.last_contact_date
-    }))
+    // Add auto-calculated metrics
+    const enhancedContacts = getContactsWithMetrics(contacts)
     
     return NextResponse.json(enhancedContacts)
   } catch (error) {

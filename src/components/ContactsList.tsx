@@ -327,7 +327,9 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
                         {contact.phone}
                       </span>
                     )}
-                    <span className="text-slate-400">•</span>
+                    {contact.phone && contact.platforms && contact.platforms.length > 0 && (
+                      <span className="text-slate-400">•</span>
+                    )}
                     {getPlatformIcons(contact.platforms)}
                   </div>
                 </div>
