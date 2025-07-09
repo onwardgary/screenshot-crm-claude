@@ -244,36 +244,63 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
   const formatRelativeTime = (dateString?: string) => {
     if (!dateString) return 'Never'
     
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-    
-    if (diffDays === 0) return 'Today'
-    if (diffDays === 1) return '1 day ago'
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
-    return `${Math.floor(diffDays / 30)} months ago`
+    try {
+      // Use only date parts to avoid hydration mismatches
+      const date = new Date(dateString)
+      const now = new Date()
+      
+      // Normalize to date only (remove time component)
+      const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+      const nowOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      
+      const diffTime = Math.abs(nowOnly.getTime() - dateOnly.getTime())
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+      
+      if (diffDays === 0) return 'Today'
+      if (diffDays === 1) return '1 day ago'
+      if (diffDays < 7) return `${diffDays} days ago`
+      if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
+      return `${Math.floor(diffDays / 30)} months ago`
+    } catch (error) {
+      return 'Unknown'
+    }
   }
 
   const getNextFollowUpText = (followUpDate?: string) => {
     if (!followUpDate) return null
     
-    const date = new Date(followUpDate)
-    const now = new Date()
-    const diffTime = date.getTime() - now.getTime()
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-    
-    if (diffDays < 0) return 'Overdue!'
-    if (diffDays === 0) return 'Today'
-    if (diffDays === 1) return 'Tomorrow'
-    return `In ${diffDays} days`
+    try {
+      // Use only date parts to avoid hydration mismatches
+      const date = new Date(followUpDate)
+      const now = new Date()
+      
+      // Normalize to date only
+      const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+      const nowOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      
+      const diffTime = dateOnly.getTime() - nowOnly.getTime()
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+      
+      if (diffDays < 0) return 'Overdue!'
+      if (diffDays === 0) return 'Today'
+      if (diffDays === 1) return 'Tomorrow'
+      return `In ${diffDays} days`
+    } catch (error) {
+      return 'Unknown'
+    }
   }
 
   const isFollowUpDue = (followUpDate?: string) => {
     if (!followUpDate) return false
-    const today = new Date().toISOString().split('T')[0]
-    return followUpDate <= today
+    
+    try {
+      // Use consistent date comparison to avoid hydration issues
+      const today = new Date().toISOString().split('T')[0]
+      const followUp = followUpDate.split('T')[0] // Handle full datetime strings
+      return followUp <= today
+    } catch (error) {
+      return false
+    }
   }
 
   if (loading) {
