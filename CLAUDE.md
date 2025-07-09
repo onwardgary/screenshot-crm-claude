@@ -346,20 +346,36 @@ GPT-4 Vision extracts activities in this format:
 
 ### **🎯 Next Development Priorities:**
 
+**Date Updated**: July 9, 2025  
+**Status**: Based on user testing feedback
+
 **High Priority:**
-1. **Complete Contact Workflow**: Finish activity → contact conversion process
-2. **Activity Deduplication**: Smart merging across multiple screenshots
-3. **Remove Legacy Lead System**: Clean up old `/api/leads` routes and components
+1. **Activity Editing**: Add individual & bulk edit functionality for activities
+   - Edit activity details (name, phone, platform, temperature, message direction)
+   - Bulk edit operations (change platform, temperature, etc.)
+   - Allow editing after organization (maintaining contact links)
+
+2. **Screenshot Functionality**: Fix screenshot viewing and indicators
+   - Add screenshot indicators to contacts (show if linked activities have screenshots)
+   - Create screenshot viewer modal with "View Screenshot" buttons
+   - Show screenshot count in contact cards for context
+
+3. **Simplify Convert Flow**: Make merge/convert more intuitive
+   - Remove relationship type requirement from convert flow (default to 'stranger')
+   - Make convert flow one-click: "Convert to Contacts"
+   - Focus on activity → contact conversion, not relationship management
+   - Update UI to match activity tracking purpose
 
 **Medium Priority:**
-4. **Mobile Optimization**: Touch gestures and responsive design improvements
-5. **Performance Optimization**: Large batch processing improvements
-6. **Advanced Analytics**: More detailed performance insights and trends
+4. **Activity Deduplication**: Smart merging across multiple screenshots
+5. **Mobile Optimization**: Touch gestures and responsive design improvements
+6. **Performance Optimization**: Large batch processing improvements
 
 **Future Enhancements:**
-7. **Bulk Operations**: Mass edit, delete, export capabilities
+7. **Advanced Analytics**: More detailed performance insights and trends
 8. **Follow-up Automation**: Smart reminders and sequences
 9. **Export/Import**: CSV, PDF reporting capabilities
+10. **Remove Legacy Lead System**: Clean up old `/api/leads` routes and components (if any exist)
 
 ## Troubleshooting
 
