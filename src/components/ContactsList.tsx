@@ -3,17 +3,15 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { useToast } from '@/hooks/use-toast'
 import { 
   Phone, 
   Calendar,
-  MessageCircle,
-  User,
   Users,
-  TrendingUp,
-  Clock,
-  Target
+  ArrowLeftRight,
+  ArrowRight,
+  Star
 } from 'lucide-react'
 
 interface Contact {
@@ -31,6 +29,11 @@ interface Contact {
   follow_up_notes?: string
   created_at: string
   updated_at?: string
+  // New auto-calculated fields
+  auto_contact_attempts?: number
+  has_two_way_communication?: boolean
+  latest_temperature?: 'hot' | 'warm' | 'cold'
+  days_since_last_contact?: number
 }
 
 interface ContactsListProps {
@@ -40,7 +43,7 @@ interface ContactsListProps {
 export default function ContactsList({ statusFilter }: ContactsListProps) {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedContacts, setSelectedContacts] = useState<Set<number>>(new Set())
+  const { toast } = useToast()
 
   const fetchContacts = useCallback(async () => {
     try {
@@ -48,59 +51,172 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
         ? `/api/contacts?status=${statusFilter}` 
         : `/api/contacts`
       const response = await fetch(url)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
       const data = await response.json()
-      setContacts(data)
+      console.log('Fetched contacts data:', data)
+      
+      // Ensure data is an array
+      if (Array.isArray(data)) {
+        setContacts(data)
+      } else {
+        console.error('Expected array but got:', typeof data, data)
+        setContacts([])
+        toast({
+          title: "Error loading contacts",
+          description: "Invalid data format received from server",
+          variant: "destructive"
+        })
+      }
     } catch (error) {
       console.error('Failed to fetch contacts:', error)
+      setContacts([])
+      toast({
+        title: "Error loading contacts", 
+        description: "Failed to load contacts. Please try again.",
+        variant: "destructive"
+      })
     } finally {
       setLoading(false)
     }
-  }, [statusFilter])
+  }, [statusFilter, toast])
 
   useEffect(() => {
     fetchContacts()
   }, [fetchContacts])
 
-  const handleContactAttempt = async (contactId: number) => {
+  const handleMarkAsCustomer = async (contactId: number) => {
     try {
-      await fetch(`/api/contacts/${contactId}/contact-attempt`, {
-        method: 'POST'
+      await fetch(`/api/contacts/${contactId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          relationship_status: 'converted'
+        })
       })
+      
+      toast({
+        title: "Contact converted",
+        description: "Contact has been marked as a customer"
+      })
+      
       fetchContacts() // Refresh data
     } catch (error) {
-      console.error('Failed to log contact attempt:', error)
+      console.error('Failed to mark as customer:', error)
+      toast({
+        title: "Error",
+        description: "Failed to mark contact as customer",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleRemoveCustomer = async (contactId: number) => {
+    try {
+      await fetch(`/api/contacts/${contactId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          relationship_status: 'active'
+        })
+      })
+      
+      toast({
+        title: "Customer status removed",
+        description: "Contact has been changed back to active"
+      })
+      
+      fetchContacts() // Refresh data
+    } catch (error) {
+      console.error('Failed to remove customer status:', error)
+      toast({
+        title: "Error",
+        description: "Failed to remove customer status",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleScheduleFollowUp = async (contactId: number) => {
+    // For now, just set follow-up for tomorrow
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const followUpDate = tomorrow.toISOString().split('T')[0]
+    
+    try {
+      await fetch(`/api/contacts/${contactId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          follow_up_date: followUpDate
+        })
+      })
+      
+      toast({
+        title: "Follow-up scheduled",
+        description: "Reminder set for tomorrow"
+      })
+      
+      fetchContacts() // Refresh data
+    } catch (error) {
+      console.error('Failed to schedule follow-up:', error)
+      toast({
+        title: "Error",
+        description: "Failed to schedule follow-up",
+        variant: "destructive"
+      })
     }
   }
 
   const getStatusBadge = (status?: string) => {
     switch (status) {
       case 'new':
-        return <Badge className="bg-blue-100 text-blue-800">New</Badge>
+        return <Badge className="bg-blue-100 text-blue-800">NEW</Badge>
       case 'active':
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>
+        return <Badge className="bg-green-100 text-green-800">ACTIVE</Badge>
       case 'converted':
-        return <Badge className="bg-purple-100 text-purple-800">Converted</Badge>
+        return <Badge className="bg-purple-100 text-purple-800 flex items-center gap-1">
+          <Star className="w-3 h-3" />
+          CUSTOMER
+        </Badge>
       case 'dormant':
-        return <Badge className="bg-gray-100 text-gray-800">Dormant</Badge>
+        return <Badge className="bg-gray-100 text-gray-800">DORMANT</Badge>
       default:
-        return <Badge variant="outline">Unknown</Badge>
+        return <Badge variant="outline">UNKNOWN</Badge>
     }
   }
 
-  const getRelationshipTypeBadge = (type?: string) => {
-    switch (type) {
-      case 'family':
-        return <Badge variant="outline">👨‍👩‍👧‍👦 Family</Badge>
-      case 'friend':
-        return <Badge variant="outline">👥 Friend</Badge>
-      case 'stranger':
-        return <Badge variant="outline">🤝 New Contact</Badge>
-      case 'referral':
-        return <Badge variant="outline">🔗 Referral</Badge>
-      case 'existing_customer':
-        return <Badge variant="outline">⭐ Customer</Badge>
+  const getTemperatureBadge = (temperature?: string) => {
+    switch (temperature) {
+      case 'hot':
+        return <Badge className="bg-red-100 text-red-800">🔥 HOT</Badge>
+      case 'warm':
+        return <Badge className="bg-orange-100 text-orange-800">🌡️ WARM</Badge>
+      case 'cold':
+        return <Badge className="bg-blue-100 text-blue-800">❄️ COLD</Badge>
       default:
-        return null
+        return <Badge className="bg-orange-100 text-orange-800">🌡️ WARM</Badge>
+    }
+  }
+
+  const getCommunicationBadge = (hasTwoWay?: boolean) => {
+    if (hasTwoWay) {
+      return (
+        <Badge className="bg-green-100 text-green-800 flex items-center gap-1">
+          <ArrowLeftRight className="w-3 h-3" />
+          Two-Way
+        </Badge>
+      )
+    } else {
+      return (
+        <Badge className="bg-gray-100 text-gray-800 flex items-center gap-1">
+          <ArrowRight className="w-3 h-3" />
+          One-Way
+        </Badge>
+      )
     }
   }
 
@@ -115,14 +231,43 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
     }
     
     return (
-      <div className="flex space-x-1">
+      <span className="flex items-center space-x-1">
         {platforms.map(platform => (
-          <span key={platform} title={platform}>
+          <span key={platform} title={platform} className="text-sm">
             {iconMap[platform.toLowerCase()] || '📱'}
           </span>
         ))}
-      </div>
+      </span>
     )
+  }
+
+  const formatRelativeTime = (dateString?: string) => {
+    if (!dateString) return 'Never'
+    
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffTime = Math.abs(now.getTime() - date.getTime())
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays === 0) return 'Today'
+    if (diffDays === 1) return '1 day ago'
+    if (diffDays < 7) return `${diffDays} days ago`
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
+    return `${Math.floor(diffDays / 30)} months ago`
+  }
+
+  const getNextFollowUpText = (followUpDate?: string) => {
+    if (!followUpDate) return null
+    
+    const date = new Date(followUpDate)
+    const now = new Date()
+    const diffTime = date.getTime() - now.getTime()
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays < 0) return 'Overdue!'
+    if (diffDays === 0) return 'Today'
+    if (diffDays === 1) return 'Tomorrow'
+    return `In ${diffDays} days`
   }
 
   const isFollowUpDue = (followUpDate?: string) => {
@@ -167,114 +312,93 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
         </div>
       </div>
 
-      <div className="grid gap-4">
+      <div className="grid gap-3">
         {contacts.map((contact) => (
           <Card key={contact.id} className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-green-100 text-green-600">
-                      {contact.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <CardTitle className="text-base">{contact.name}</CardTitle>
-                    <CardDescription className="flex items-center space-x-2">
-                      {contact.phone && (
-                        <span className="flex items-center">
-                          <Phone className="h-3 w-3 mr-1" />
-                          {contact.phone}
-                        </span>
-                      )}
-                      {getPlatformIcons(contact.platforms)}
-                    </CardDescription>
+            <CardContent className="p-4">
+              {/* Header Row */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-slate-900">{contact.name}</h3>
+                  <div className="flex items-center gap-2 text-sm text-slate-600">
+                    {contact.phone && (
+                      <span className="flex items-center gap-1">
+                        <Phone className="w-3 h-3" />
+                        {contact.phone}
+                      </span>
+                    )}
+                    <span className="text-slate-400">•</span>
+                    {getPlatformIcons(contact.platforms)}
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-2">
+                  {getTemperatureBadge(contact.latest_temperature)}
                   {getStatusBadge(contact.relationship_status)}
-                  {getRelationshipTypeBadge(contact.relationship_type)}
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="pt-0">
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="space-y-2">
-                  <div className="flex items-center text-sm">
-                    <Target className="h-4 w-4 mr-2 text-blue-500" />
-                    <span className="text-slate-600">Attempts: </span>
-                    <span className="font-medium">{contact.contact_attempts || 0}</span>
-                  </div>
-                  
-                  {contact.response_rate !== undefined && (
-                    <div className="flex items-center text-sm">
-                      <TrendingUp className="h-4 w-4 mr-2 text-green-500" />
-                      <span className="text-slate-600">Response: </span>
-                      <span className="font-medium">{Math.round(contact.response_rate * 100)}%</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  {contact.last_contact_date && (
-                    <div className="flex items-center text-sm">
-                      <Clock className="h-4 w-4 mr-2 text-orange-500" />
-                      <span className="text-slate-600">Last contact: </span>
-                      <span className="font-medium">
-                        {new Date(contact.last_contact_date).toLocaleDateString()}
-                      </span>
-                    </div>
-                  )}
-                  
-                  {contact.follow_up_date && (
-                    <div className="flex items-center text-sm">
-                      <Calendar className={`h-4 w-4 mr-2 ${isFollowUpDue(contact.follow_up_date) ? 'text-red-500' : 'text-blue-500'}`} />
-                      <span className="text-slate-600">Follow-up: </span>
-                      <span className={`font-medium ${isFollowUpDue(contact.follow_up_date) ? 'text-red-600' : ''}`}>
-                        {new Date(contact.follow_up_date).toLocaleDateString()}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
 
-              {contact.notes && (
-                <div className="mb-3 p-3 bg-slate-50 rounded-lg">
-                  <p className="text-sm text-slate-700">{contact.notes}</p>
-                </div>
-              )}
+              {/* Communication Status */}
+              <div className="mb-3">
+                {getCommunicationBadge(contact.has_two_way_communication ?? false)}
+              </div>
 
-              {contact.follow_up_notes && (
-                <div className="mb-3 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-xs font-medium text-blue-800 mb-1">Follow-up Notes:</p>
-                  <p className="text-sm text-blue-700">{contact.follow_up_notes}</p>
-                </div>
-              )}
+              {/* Metrics Row */}
+              <div className="flex items-center gap-6 text-sm text-slate-600 mb-4">
+                <span className="font-medium">
+                  {contact.auto_contact_attempts || contact.contact_attempts || 0} contacts
+                </span>
+                <span>
+                  Last: {formatRelativeTime(contact.last_contact_date)}
+                </span>
+                {contact.follow_up_date && (
+                  <span className={isFollowUpDue(contact.follow_up_date) ? 'text-red-600 font-medium' : ''}>
+                    Next: {getNextFollowUpText(contact.follow_up_date)}
+                  </span>
+                )}
+              </div>
 
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-slate-500">
-                  Added {new Date(contact.created_at).toLocaleDateString()}
-                </div>
-
-                <div className="flex space-x-2">
+              {/* Action Buttons */}
+              <div className="flex gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => handleScheduleFollowUp(contact.id)}
+                  className="flex-1"
+                >
+                  <Calendar className="w-3 h-3 mr-1" />
+                  Schedule Follow-up
+                </Button>
+                
+                {contact.relationship_status === 'converted' ? (
                   <Button 
                     size="sm" 
                     variant="outline"
-                    onClick={() => handleContactAttempt(contact.id)}
-                    className="text-xs"
+                    onClick={() => handleRemoveCustomer(contact.id)}
+                    className="flex-1"
                   >
-                    <MessageCircle className="h-3 w-3 mr-1" />
-                    Log Contact
+                    <Star className="w-3 h-3 mr-1" />
+                    Remove Customer
                   </Button>
-                  
-                  {isFollowUpDue(contact.follow_up_date) && (
-                    <Badge className="bg-red-100 text-red-800 text-xs">
-                      Follow-up Due!
-                    </Badge>
-                  )}
-                </div>
+                ) : (
+                  <Button 
+                    size="sm" 
+                    onClick={() => handleMarkAsCustomer(contact.id)}
+                    className="flex-1 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white"
+                  >
+                    <Star className="w-3 h-3 mr-1" />
+                    Mark as Customer
+                  </Button>
+                )}
               </div>
+
+              {/* Overdue Follow-up Alert */}
+              {isFollowUpDue(contact.follow_up_date) && (
+                <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-sm text-red-800 font-medium">
+                    ⚠️ Follow-up is overdue!
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}

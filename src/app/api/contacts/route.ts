@@ -6,13 +6,24 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') as 'new' | 'active' | 'converted' | 'dormant' | null
     
+    let contacts
     if (status) {
-      const contacts = contactOperations.getByStatus(status)
-      return NextResponse.json(contacts)
+      contacts = contactOperations.getByStatus(status)
+    } else {
+      contacts = contactOperations.getAll()
     }
     
-    const contacts = contactOperations.getAll()
-    return NextResponse.json(contacts)
+    // For now, return contacts without auto-calculated metrics to avoid database conflicts
+    // We'll add the metrics calculation later after ensuring it works
+    const enhancedContacts = contacts.map(contact => ({
+      ...contact,
+      auto_contact_attempts: contact.contact_attempts || 0,
+      has_two_way_communication: false, // Default for now
+      latest_temperature: 'warm', // Default for now
+      last_contact_date: contact.last_contact_date
+    }))
+    
+    return NextResponse.json(enhancedContacts)
   } catch (error) {
     console.error('Failed to fetch contacts:', error)
     return NextResponse.json({ error: 'Failed to fetch contacts' }, { status: 500 })
