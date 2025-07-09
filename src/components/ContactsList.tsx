@@ -374,7 +374,7 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
               {/* Metrics Row */}
               <div className="flex items-center gap-6 text-sm text-slate-600 mb-4">
                 <span className="font-medium">
-                  {contact.auto_contact_attempts || contact.contact_attempts || 0} contacts
+                  {contact.auto_contact_attempts || contact.contact_attempts || 0} engagements
                 </span>
                 <span>
                   Last: {formatRelativeTime(contact.last_contact_date)}

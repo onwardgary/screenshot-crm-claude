@@ -88,7 +88,7 @@ export interface Contact {
   relationship_status?: 'new' | 'active' | 'converted' | 'dormant'
   relationship_type?: 'family' | 'friend' | 'stranger' | 'referral' | 'existing_customer'
   last_contact_date?: string
-  contact_attempts?: number
+  contact_attempts?: number // Total engagements (activities linked to this contact)
   response_rate?: number
   notes?: string
   follow_up_date?: string
