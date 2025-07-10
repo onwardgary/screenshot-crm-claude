@@ -53,7 +53,6 @@ export default function OrganizeContactModal({
   // Form states for create mode
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
-  const [relationshipType, setRelationshipType] = useState('stranger')
   const [notes, setNotes] = useState('')
 
   // Selected contact for link mode
@@ -108,7 +107,6 @@ export default function OrganizeContactModal({
             name,
             phone,
             platforms,
-            relationship_type: relationshipType,
             notes
           })
         })
@@ -128,7 +126,7 @@ export default function OrganizeContactModal({
         if (!selectedContactId) {
           toast({
             title: "Please select a contact",
-            description: "Choose an existing contact to link activities to",
+            description: "Choose an existing contact to assign activities to",
             variant: "destructive"
           })
           return
@@ -138,8 +136,8 @@ export default function OrganizeContactModal({
         
         const contact = contacts.find(c => c.id === selectedContactId)
         toast({
-          title: "Activities linked successfully",
-          description: `${activities.length} activities linked to ${contact?.name}`
+          title: "Activities assigned successfully",
+          description: `${activities.length} activities assigned to ${contact?.name}`
         })
       }
       
@@ -183,7 +181,7 @@ export default function OrganizeContactModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link className="w-5 h-5" />
-            Merge {activities.length} Activities into 1 Contact
+            Combine and Assign {activities.length} Activities to 1 Contact
           </DialogTitle>
           <DialogDescription>
             Combine multiple activities from the same person into a single contact
@@ -237,7 +235,7 @@ export default function OrganizeContactModal({
             </TabsTrigger>
             <TabsTrigger value="link">
               <Link className="w-4 h-4 mr-2" />
-              Link to Existing
+              Assign to Existing
             </TabsTrigger>
           </TabsList>
 
@@ -263,21 +261,6 @@ export default function OrganizeContactModal({
                 />
               </div>
 
-              <div>
-                <Label htmlFor="relationship">Relationship Type</Label>
-                <Select value={relationshipType} onValueChange={setRelationshipType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select relationship type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="stranger">Stranger</SelectItem>
-                    <SelectItem value="friend">Friend</SelectItem>
-                    <SelectItem value="family">Family</SelectItem>
-                    <SelectItem value="referral">Referral</SelectItem>
-                    <SelectItem value="existing_customer">Existing Customer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
 
               <div>
                 <Label htmlFor="notes">Notes</Label>
@@ -335,7 +318,7 @@ export default function OrganizeContactModal({
 
         {/* Activity Preview */}
         <div className="mt-4">
-          <Label className="mb-2 block">Activities to Organize</Label>
+          <Label className="mb-2 block">Activities to Assign</Label>
           <div className="border rounded-md p-3 bg-gray-50 space-y-2">
             {Object.entries(groupedActivities).map(([platform, platformActivities]) => (
               <div key={platform} className="flex items-center justify-between">
@@ -356,7 +339,7 @@ export default function OrganizeContactModal({
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={loading || (mode === 'create' && !name)}>
-            {loading ? 'Organizing...' : mode === 'create' ? 'Create & Organize' : 'Link Activities'}
+            {loading ? 'Assigning...' : mode === 'create' ? 'Create & Assign' : 'Assign Activities'}
           </Button>
         </DialogFooter>
       </DialogContent>

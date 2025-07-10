@@ -51,7 +51,7 @@ export default function BulkActionBar({
                 }`}
               >
                 <Link className="w-4 h-4 mr-1" />
-                Merge into 1 Contact
+                Combine and Assign
               </Button>
               {recommendation === 'merge' && recommendationReason && (
                 <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
@@ -72,7 +72,7 @@ export default function BulkActionBar({
                 }`}
               >
                 <FileStack className="w-4 h-4 mr-1" />
-                Convert to {selectedCount} {selectedCount === 1 ? 'Contact' : 'Contacts'}
+                Assign to {selectedCount === 1 ? 'Contact' : 'Contacts'}
               </Button>
               {recommendation === 'convert' && recommendationReason && (
                 <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">

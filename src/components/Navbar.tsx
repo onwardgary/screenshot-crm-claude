@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Upload, Menu, X } from 'lucide-react'
 
 interface NavbarProps {
-  currentPage?: 'home' | 'dashboard' | 'activities' | 'contacts'
+  currentPage?: 'home' | 'dashboard' | 'upload' | 'activities' | 'contacts'
 }
 
 export default function Navbar({ currentPage = 'home' }: NavbarProps) {
@@ -19,7 +19,7 @@ export default function Navbar({ currentPage = 'home' }: NavbarProps) {
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2 flex-shrink-0">
             <div className="w-8 h-8 bg-gradient-to-r from-sky-400 to-blue-500 rounded-lg"></div>
-            <h1 className="text-lg sm:text-xl font-semibold text-slate-900 hidden sm:block">
+<h1 className="text-lg sm:text-xl font-semibold text-slate-900 hidden sm:block">
               Activity Dashboard
             </h1>
             <h1 className="text-lg font-semibold text-slate-900 sm:hidden">
@@ -32,13 +32,16 @@ export default function Navbar({ currentPage = 'home' }: NavbarProps) {
             {currentPage === 'home' ? (
               <div className="flex items-center gap-2">
                 <Button asChild variant="outline" size="sm">
-                  <Link href="/dashboard">Dashboard</Link>
-                </Button>
-                <Button asChild variant="outline" size="sm">
                   <Link href="/activities">Activities</Link>
                 </Button>
                 <Button asChild variant="outline" size="sm">
                   <Link href="/contacts">Contacts</Link>
+                </Button>
+                <Button asChild className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700" size="sm">
+                  <Link href="/upload">
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload
+                  </Link>
                 </Button>
               </div>
             ) : (
@@ -49,7 +52,7 @@ export default function Navbar({ currentPage = 'home' }: NavbarProps) {
                   size="sm"
                   className={currentPage === 'dashboard' ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' : ''}
                 >
-                  <Link href="/dashboard">Dashboard</Link>
+                  <Link href="/">Dashboard</Link>
                 </Button>
                 <Button 
                   asChild 
@@ -67,8 +70,8 @@ export default function Navbar({ currentPage = 'home' }: NavbarProps) {
                 >
                   <Link href="/contacts">Contacts</Link>
                 </Button>
-                <Button asChild className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700" size="sm">
-                  <Link href="/">
+                <Button asChild className={currentPage === 'upload' ? 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700' : 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700'} size="sm">
+                  <Link href="/upload">
                     <Upload className="w-4 h-4 mr-2" />
                     Upload
                   </Link>
@@ -101,11 +104,6 @@ export default function Navbar({ currentPage = 'home' }: NavbarProps) {
               {currentPage === 'home' ? (
                 <div className="space-y-1">
                   <Button asChild variant="ghost" className="w-full justify-start" size="sm">
-                    <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)}>
-                      📊 Dashboard
-                    </Link>
-                  </Button>
-                  <Button asChild variant="ghost" className="w-full justify-start" size="sm">
                     <Link href="/activities" onClick={() => setIsMobileMenuOpen(false)}>
                       📱 Activities
                     </Link>
@@ -115,6 +113,18 @@ export default function Navbar({ currentPage = 'home' }: NavbarProps) {
                       👥 Contacts
                     </Link>
                   </Button>
+                  <div className="border-t border-slate-200 pt-2 mt-2">
+                    <Button 
+                      asChild 
+                      className="w-full justify-start bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700" 
+                      size="sm"
+                    >
+                      <Link href="/upload" onClick={() => setIsMobileMenuOpen(false)}>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload Screenshot
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -125,7 +135,7 @@ export default function Navbar({ currentPage = 'home' }: NavbarProps) {
                       className={`w-full justify-start ${currentPage === 'dashboard' ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' : ''}`}
                       size="sm"
                     >
-                      <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Link href="/" onClick={() => setIsMobileMenuOpen(false)}>
                         📊 Dashboard
                       </Link>
                     </Button>
@@ -153,10 +163,10 @@ export default function Navbar({ currentPage = 'home' }: NavbarProps) {
                   <div className="border-t border-slate-200 pt-2">
                     <Button 
                       asChild 
-                      className="w-full justify-start bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700" 
+                      className={`w-full justify-start ${currentPage === 'upload' ? 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700' : 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700'}`}
                       size="sm"
                     >
-                      <Link href="/" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Link href="/upload" onClick={() => setIsMobileMenuOpen(false)}>
                         <Upload className="w-4 h-4 mr-2" />
                         Upload Screenshot
                       </Link>
