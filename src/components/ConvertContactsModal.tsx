@@ -5,8 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Progress } from '@/components/ui/progress'
-import { FileStack, AlertCircle } from 'lucide-react'
+import { FileStack } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { fetchExistingContacts, type ExistingContact } from '@/lib/contactDetection'
 import ActivityAssignmentCard from './ActivityAssignmentCard'
@@ -41,8 +40,6 @@ export default function ConvertContactsModal({
 }: ConvertContactsModalProps) {
   const [assignmentItems, setAssignmentItems] = useState<AssignmentItem[]>([])
   const [existingContacts, setExistingContacts] = useState<ExistingContact[]>([])
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [progress, setProgress] = useState(0)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -50,6 +47,7 @@ export default function ConvertContactsModal({
       initializeAssignments()
     }
   }, [open, activities]) // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const initializeAssignments = async () => {
     // Fetch existing contacts for detection
@@ -131,6 +129,9 @@ export default function ConvertContactsModal({
         description: `Activity successfully assigned to contact`
       })
 
+      // Immediately refresh activities list
+      onSuccess()
+
     } catch (err) {
       console.error('Assignment error:', err)
       
@@ -149,60 +150,6 @@ export default function ConvertContactsModal({
     }
   }
 
-  const handleAssignAll = async () => {
-    setIsProcessing(true)
-    setProgress(0)
-    
-    const pendingItems = assignmentItems.filter(item => item.status === 'pending')
-    let successCount = 0
-    let errorCount = 0
-
-    // Auto-assign all pending items based on smart detection
-    for (let i = 0; i < pendingItems.length; i++) {
-      const item = pendingItems[i]
-      
-      try {
-        // Use smart detection to determine best assignment
-        // For now, create new contacts for all (can be enhanced later)
-        await handleAssignment(item.activity.id, {
-          mode: 'create',
-          contactData: {
-            name: item.activity.person_name,
-            phone: item.activity.phone || '',
-            notes: `Auto-assigned from ${item.activity.platform} activity`
-          }
-        })
-        successCount++
-      } catch {
-        errorCount++
-      }
-      
-      setProgress(((i + 1) / pendingItems.length) * 100)
-    }
-
-    setIsProcessing(false)
-    
-    if (errorCount === 0) {
-      toast({
-        title: "All activities assigned",
-        description: `Successfully assigned ${successCount} activities to contacts`
-      })
-      setTimeout(() => {
-        onSuccess()
-        onClose()
-      }, 1000)
-    } else {
-      toast({
-        title: "Assignment completed with errors",
-        description: `${successCount} succeeded, ${errorCount} failed`,
-        variant: "destructive"
-      })
-    }
-  }
-
-  const pendingCount = assignmentItems.filter(item => item.status === 'pending').length
-  const successCount = assignmentItems.filter(item => item.status === 'success').length
-  const errorCount = assignmentItems.filter(item => item.status === 'error').length
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -213,26 +160,11 @@ export default function ConvertContactsModal({
             Assign {activities.length} Activities to Contacts
           </DialogTitle>
           <DialogDescription>
-            Each activity will be assigned to a contact (creating new contacts as needed)
+            Review and assign each activity individually. Use Smart Organize for bulk automated assignment.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Summary Banner */}
-          {assignmentItems.length > 0 && (
-            <div className="p-4 rounded-lg border bg-blue-50 border-blue-200 text-blue-800">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-semibold mb-1">Assignment Status</p>
-                  <p className="text-sm">
-                    {pendingCount} pending, {successCount} completed, {errorCount} failed
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Assignment List */}
           <div>
             <Label className="mb-2 block">Activities to Assign</Label>
@@ -245,39 +177,21 @@ export default function ConvertContactsModal({
                     existingContacts={existingContacts}
                     onAssign={handleAssignment}
                     status={item.status}
-                    disabled={isProcessing}
+                    disabled={false}
                   />
                 ))}
               </div>
             </ScrollArea>
           </div>
 
-          {/* Progress Bar */}
-          {isProcessing && (
-            <div className="space-y-2">
-              <Label>Assignment Progress</Label>
-              <Progress value={progress} className="h-2" />
-              <p className="text-sm text-muted-foreground text-center">
-                Assigning activities... {Math.round(progress)}%
-              </p>
-            </div>
-          )}
         </div>
 
         <DialogFooter>
           <Button 
             variant="outline" 
-            onClick={onClose} 
-            disabled={isProcessing}
+            onClick={onClose}
           >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleAssignAll} 
-            disabled={isProcessing || pendingCount === 0}
-            className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700"
-          >
-            {isProcessing ? 'Assigning...' : `Auto-Assign ${pendingCount} ${pendingCount === 1 ? 'Activity' : 'Activities'}`}
+            Close
           </Button>
         </DialogFooter>
       </DialogContent>
