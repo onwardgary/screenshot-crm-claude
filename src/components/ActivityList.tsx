@@ -1,22 +1,16 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { 
-  MessageCircle, 
   Phone, 
-  Star, 
-  AlertCircle,
   Image,
   ArrowRight,
-  UserPlus,
   Users,
-  Activity,
-  Check
+  Activity
 } from 'lucide-react'
 
 interface Activity {
@@ -46,17 +40,18 @@ interface ActivityListProps {
 
 export default function ActivityList({ organized = false, activities, loading = false, onSelectionChange, selectedIds = [] }: ActivityListProps) {
   const [selectedActivities, setSelectedActivities] = useState<Set<number>>(new Set())
+  const [isClient, setIsClient] = useState(false)
+
+  // Ensure client-side rendering for date operations
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   // Sync selectedActivities with external selectedIds
   useEffect(() => {
     setSelectedActivities(new Set(selectedIds))
   }, [selectedIds])
 
-  const handleOrganizeActivity = async (activityId: number) => {
-    // For now, just show that it's being organized
-    // Later we'll add a modal to create/link to contact
-    console.log('Organizing activity:', activityId)
-  }
 
   const toggleSelection = (activityId: number) => {
     const newSelected = new Set(selectedActivities)
@@ -82,19 +77,29 @@ export default function ActivityList({ organized = false, activities, loading = 
     }
   }
 
-  const getPlatformIcon = (platform: string) => {
-    switch (platform.toLowerCase()) {
-      case 'whatsapp':
-        return '💬'
-      case 'instagram':
-        return '📷'
-      case 'tiktok':
-        return '🎵'
-      case 'messenger':
-        return '💬'
-      default:
-        return '📱'
+  const getPlatformIcon = (platform: string, size = 16) => {
+    const iconMap: Record<string, string> = {
+      'whatsapp': '/icons/whatsapp.svg',
+      'instagram': '/icons/instagram.svg',
+      'messenger': '/icons/messenger.svg',
+      'telegram': '/icons/telegram.svg',
+      'tiktok': '/icons/tiktok.svg',
+      'line': '/icons/line.svg',
+      'linkedin': '/icons/linkedin.svg',
+      'wechat': '/icons/wechat.svg'
     }
+    
+    const iconPath = iconMap[platform.toLowerCase()] || '/icons/phone.svg'
+    
+    return (
+      <img 
+        src={iconPath} 
+        alt={`${platform} icon`}
+        width={size} 
+        height={size}
+        className="inline-block"
+      />
+    )
   }
 
   const getTemperatureBadge = (temperature?: string) => {
@@ -182,15 +187,13 @@ export default function ActivityList({ organized = false, activities, loading = 
                       aria-label={`Select ${activity.person_name}`}
                     />
                   )}
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-blue-100 text-blue-600">
-                      {activity.person_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                    </AvatarFallback>
-                  </Avatar>
                   <div>
                     <CardTitle className="text-base">{activity.person_name}</CardTitle>
                     <CardDescription className="flex items-center space-x-2">
-                      <span>{getPlatformIcon(activity.platform)} {activity.platform}</span>
+                      <span className="flex items-center gap-1">
+                        {getPlatformIcon(activity.platform, 14)}
+                        {activity.platform}
+                      </span>
                       {activity.phone && (
                         <span className="flex items-center">
                           <Phone className="h-3 w-3 mr-1" />
@@ -214,16 +217,30 @@ export default function ActivityList({ organized = false, activities, loading = 
 
             <CardContent className="pt-0">
               {activity.message_content && (
-                <div className="mb-3 p-3 bg-slate-50 rounded-lg">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-slate-600">
-                      {activity.message_from === 'user' ? 'You' : activity.person_name}
-                    </span>
-                    {activity.timestamp && (
-                      <span className="text-xs text-slate-500">{activity.timestamp}</span>
-                    )}
+                <div className={`mb-3 p-3 bg-slate-50 rounded-lg border-l-4 ${
+                  activity.message_from === 'user' ? 'border-l-blue-400' : 'border-l-green-400'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 ${
+                        activity.message_from === 'user' 
+                          ? 'bg-blue-100 text-blue-700' 
+                          : 'bg-green-100 text-green-700'
+                      }`}>
+                        {activity.message_from === 'user' ? (
+                          <>← You sent</>
+                        ) : (
+                          <>→ They sent</>
+                        )}
+                      </span>
+                      {activity.timestamp && (
+                        <span className="text-xs text-slate-500">
+                          💬 Message: {activity.timestamp}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-sm text-slate-700">{activity.message_content}</p>
+                  <p className="text-sm text-slate-700 italic">&ldquo;{activity.message_content}&rdquo;</p>
                 </div>
               )}
 
@@ -236,26 +253,22 @@ export default function ActivityList({ organized = false, activities, loading = 
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4 text-xs text-slate-500">
                   {activity.screenshot_id && (
-                    <span className="flex items-center">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => window.open(`/api/screenshots/${activity.screenshot_id}`, '_blank')}
+                      className="h-6 px-2 text-xs hover:bg-blue-50 hover:border-blue-300"
+                    >
                       <Image className="h-3 w-3 mr-1" />
-                      Screenshot
-                    </span>
+                      View Screenshot
+                    </Button>
                   )}
-                  <span>{new Date(activity.created_at).toLocaleDateString()}</span>
+                  <span className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded">
+                    📱 Added: {isClient ? new Date(activity.created_at).toLocaleDateString() : activity.created_at.split('T')[0]}
+                  </span>
                 </div>
 
                 <div className="flex space-x-2">
-                  {!organized && !activity.contact_id && (
-                    <Button 
-                      size="sm" 
-                      onClick={() => handleOrganizeActivity(activity.id)}
-                      className="text-xs"
-                    >
-                      <UserPlus className="h-3 w-3 mr-1" />
-                      Organize
-                    </Button>
-                  )}
-                  
                   {activity.contact_id && (
                     <Badge variant="outline" className="text-xs">
                       <ArrowRight className="h-3 w-3 mr-1" />

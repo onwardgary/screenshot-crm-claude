@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -55,9 +54,7 @@ export interface FilterState {
 
 export default function ActivityFilters({ onFiltersChange, totalCount, filters, stats }: ActivityFiltersProps) {
 
-  const [isFilterOpen, setIsFilterOpen] = useState(false)
-
-  const updateFilter = (key: keyof FilterState, value: any) => {
+  const updateFilter = (key: keyof FilterState, value: string | string[] | boolean) => {
     const newFilters = { ...filters, [key]: value }
     console.log('🔧 ActivityFilters updating:', key, '=', value)
     console.log('🔧 New filters:', newFilters)

@@ -24,9 +24,22 @@ export default function ActivitiesPage() {
     sort: 'created_at',
     order: 'desc'
   })
-  const [stats, setStats] = useState<any>(null)
+  const [stats, setStats] = useState<{
+    total: number;
+    hot: number;
+    warm: number;
+    cold: number;
+    platforms: Record<string, number>;
+  } | null>(null)
   const [selectedActivityIds, setSelectedActivityIds] = useState<number[]>([])
-  const [activities, setActivities] = useState<any[]>([])
+  const [activities, setActivities] = useState<{
+    id: number;
+    person_name: string;
+    platform: string;
+    temperature: 'hot' | 'warm' | 'cold';
+    created_at: string;
+    [key: string]: unknown;
+  }[]>([])
   const [activitiesLoading, setActivitiesLoading] = useState(true)
   const [showOrganizeModal, setShowOrganizeModal] = useState(false)
   const [showConvertModal, setShowConvertModal] = useState(false)
@@ -37,7 +50,7 @@ export default function ActivitiesPage() {
     console.log('🔄 Filters changed:', filters)
     fetchStats()
     fetchActivities()
-  }, [filters])
+  }, [filters]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchStats = async () => {
     try {
@@ -71,8 +84,8 @@ export default function ActivitiesPage() {
       const data = await response.json()
       
       setActivities(data)
-    } catch (error) {
-      console.error('Failed to fetch activities:', error)
+    } catch {
+      console.error('Failed to fetch activities')
     } finally {
       setActivitiesLoading(false)
     }
@@ -94,7 +107,7 @@ export default function ActivitiesPage() {
         setSelectedActivityIds([])
         fetchActivities()
         fetchStats()
-      } catch (error) {
+      } catch {
         toast({
           title: "Error deleting activities",
           description: "Some activities could not be deleted",
@@ -120,10 +133,10 @@ export default function ActivitiesPage() {
           <div>
             <h1 className="text-3xl font-bold text-slate-900 mb-2">Unorganized Activities</h1>
             <p className="text-slate-600">
-              Activities from screenshots that haven't been organized into contacts yet
+              Activities from screenshots that haven&apos;t been organized into contacts yet
             </p>
           </div>
-          {stats?.total > 0 && (
+          {stats?.total && stats.total > 0 && (
             <button
               onClick={() => setShowSmartOrganizeModal(true)}
               className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 flex items-center gap-2 shadow-lg"

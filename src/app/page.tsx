@@ -2,15 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import Navbar from '@/components/Navbar'
 import ActivityStreakCalendar from '@/components/ActivityStreakCalendar'
 import { 
-  Activity,
   Users,
   Camera,
   TrendingUp,
-  Calendar,
   Target,
   MessageCircle,
   Star,
@@ -18,7 +15,13 @@ import {
 } from 'lucide-react'
 
 interface AnalyticsData {
-  activityMetrics: any[]
+  activityMetrics: {
+    date: string;
+    count: number;
+    platform: string;
+    platform_breakdown: Record<string, number>;
+    temperature_breakdown: Record<string, number>;
+  }[]
   contactMetrics: {
     total_contacts: number
     new_contacts: number
@@ -39,10 +42,37 @@ export default function HomePage() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [timeframe, setTimeframe] = useState(7)
+  const [isClient, setIsClient] = useState(false)
+
+  const getPlatformIcon = (platform: string, size = 16) => {
+    const iconMap: Record<string, string> = {
+      'whatsapp': '/icons/whatsapp.svg',
+      'instagram': '/icons/instagram.svg',
+      'messenger': '/icons/messenger.svg',
+      'telegram': '/icons/telegram.svg',
+      'tiktok': '/icons/tiktok.svg',
+      'line': '/icons/line.svg',
+      'linkedin': '/icons/linkedin.svg',
+      'wechat': '/icons/wechat.svg'
+    }
+    
+    const iconPath = iconMap[platform.toLowerCase()] || '/icons/phone.svg'
+    
+    return (
+      <img 
+        src={iconPath} 
+        alt={`${platform} icon`}
+        width={size} 
+        height={size}
+        className="inline-block"
+      />
+    )
+  }
 
   useEffect(() => {
+    setIsClient(true)
     fetchAnalytics()
-  }, [timeframe])
+  }, [timeframe]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchAnalytics = async () => {
     try {
@@ -57,7 +87,7 @@ export default function HomePage() {
   }
 
   const calculateActivityStreak = () => {
-    if (!analytics?.activityStreak) return 0
+    if (!analytics?.activityStreak || !isClient) return 0
     
     let streak = 0
     const today = new Date()
@@ -66,7 +96,7 @@ export default function HomePage() {
     )
     
     // Start from yesterday (or today if we have today's activity)
-    let currentDate = new Date(today)
+    const currentDate = new Date(today)
     const todayStr = today.toISOString().split('T')[0]
     const hasToday = sortedDates.some(d => d.activity_date === todayStr && d.daily_count > 0)
     
@@ -93,13 +123,13 @@ export default function HomePage() {
 
   const getTotalActivities = () => {
     if (!analytics?.activityMetrics) return 0
-    return analytics.activityMetrics.reduce((sum, metric) => sum + (metric.total_activities || 0), 0)
+    return analytics.activityMetrics.reduce((sum, metric) => sum + (metric.count || 0), 0)
   }
 
   const getTopPlatform = () => {
     if (!analytics?.activityMetrics || analytics.activityMetrics.length === 0) return null
     return analytics.activityMetrics.reduce((top, current) => 
-      (current.platform_count || 0) > (top.platform_count || 0) ? current : top
+      (current.count || 0) > (top.count || 0) ? current : top
     )
   }
 
@@ -166,7 +196,7 @@ export default function HomePage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {analytics?.activityMetrics.reduce((sum, m) => sum + (m.screenshots_processed || 0), 0) || 0}
+                {analytics?.activityMetrics.reduce((sum, m) => sum + (m.count || 0), 0) || 0}
               </div>
               <p className="text-xs text-muted-foreground">
                 Last {timeframe} days
@@ -194,10 +224,10 @@ export default function HomePage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {topPlatform ? topPlatform.platform : 'None'}
+                {topPlatform ? topPlatform.date : 'None'}
               </div>
               <p className="text-xs text-muted-foreground">
-                {topPlatform ? `${topPlatform.platform_count} activities` : 'No activities yet'}
+                {topPlatform ? `${topPlatform.count} activities` : 'No activities yet'}
               </p>
             </CardContent>
           </Card>
@@ -274,22 +304,18 @@ export default function HomePage() {
                 {analytics.activityMetrics.map((metric, index) => (
                   <div key={index} className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="text-2xl">
-                        {metric.platform === 'whatsapp' && '💬'}
-                        {metric.platform === 'instagram' && '📷'}
-                        {metric.platform === 'tiktok' && '🎵'}
-                        {metric.platform === 'messenger' && '💬'}
-                        {!['whatsapp', 'instagram', 'tiktok', 'messenger'].includes(metric.platform) && '📱'}
+                      <div className="w-6 h-6 flex items-center justify-center">
+                        {getPlatformIcon(metric.platform, 20)}
                       </div>
                       <div>
                         <div className="font-medium capitalize">{metric.platform}</div>
                         <div className="text-sm text-muted-foreground">
-                          {metric.individual_conversations || 0} individual, {metric.group_conversations || 0} group
+                          {metric.count || 0} total activities
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold">{metric.platform_count}</div>
+                      <div className="text-2xl font-bold">{metric.count}</div>
                       <div className="text-sm text-muted-foreground">activities</div>
                     </div>
                   </div>

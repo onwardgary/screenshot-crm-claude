@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     stats.today = activities.filter(a => {
+      if (!a.created_at) return false
       const activityDate = new Date(a.created_at)
       activityDate.setHours(0, 0, 0, 0)
       return activityDate.getTime() === today.getTime()

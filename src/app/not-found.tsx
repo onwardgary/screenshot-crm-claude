@@ -9,7 +9,7 @@ export default function NotFound() {
         <FileQuestion className="h-12 w-12 text-slate-400 mx-auto" />
         <h2 className="text-2xl font-bold text-slate-900">Page Not Found</h2>
         <p className="text-slate-600 max-w-md mx-auto">
-          Sorry, we couldn't find the page you're looking for.
+          Sorry, we couldn&apos;t find the page you&apos;re looking for.
         </p>
         <Button asChild className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700">
           <Link href="/">Return Home</Link>

@@ -15,7 +15,6 @@ import {
   User, 
   Phone, 
   MessageSquare, 
-  TrendingUp, 
   FileImage,
   ChevronDown,
   CheckCircle
@@ -78,7 +77,7 @@ export default function BatchAnalyzePage() {
       setData(parsed)
       
       // Initialize activities with included flag and screenshot_id
-      const activitiesWithFlags = parsed.activities.map((activity: Activity, index: number) => ({
+      const activitiesWithFlags = parsed.activities.map((activity: Activity) => ({
         ...activity,
         included: !activity.is_group_chat,
         screenshot_id: activity.screenshot_id || parsed.screenshots?.[0]?.id

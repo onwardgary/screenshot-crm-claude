@@ -8,11 +8,10 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { UserPlus, Link, Users, Phone, MessageCircle, AlertCircle } from 'lucide-react'
+import { UserPlus, Link, Phone, MessageCircle, AlertCircle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-import { fetchExistingContacts, detectExistingContactForActivities, type ExistingContact, type ContactDetectionResult } from '@/lib/contactDetection'
+import { fetchExistingContacts, detectExistingContactForActivities, type ContactDetectionResult } from '@/lib/contactDetection'
 
 interface Activity {
   id: number
@@ -47,7 +46,6 @@ export default function OrganizeContactModal({
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(false)
   const [detectionResult, setDetectionResult] = useState<ContactDetectionResult | null>(null)
-  const [existingContacts, setExistingContacts] = useState<ExistingContact[]>([])
   const { toast } = useToast()
 
   // Form states for create mode
@@ -62,7 +60,7 @@ export default function OrganizeContactModal({
     if (open && activities.length > 0) {
       initializeModal()
     }
-  }, [open, activities])
+  }, [open, activities]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const initializeModal = async () => {
     // Auto-fill from activities
@@ -77,8 +75,7 @@ export default function OrganizeContactModal({
     
     // Fetch existing contacts for intelligent detection
     const existingContactsData = await fetchExistingContacts()
-    setExistingContacts(existingContactsData)
-    setContacts(existingContactsData) // For backward compatibility with existing UI
+    setContacts(existingContactsData as unknown as Contact[]) // For backward compatibility with existing UI
     
     // Detect if there's an existing contact match
     const detection = detectExistingContactForActivities(activities, existingContactsData)

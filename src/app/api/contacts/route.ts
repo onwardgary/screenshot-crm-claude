@@ -7,7 +7,7 @@ import path from 'path'
 const dbPath = path.join(process.cwd(), 'sales-activity.db')
 
 // Enhanced function to get contacts with auto-calculated metrics
-function getContactsWithMetrics(contacts: any[]) {
+function getContactsWithMetrics(contacts: Record<string, unknown>[]) {
   // Create a separate database connection for this operation
   const db = new Database(dbPath)
   
@@ -25,12 +25,17 @@ function getContactsWithMetrics(contacts: any[]) {
       const latestActivityStmt = db.prepare('SELECT temperature, created_at FROM activities WHERE contact_id = ? ORDER BY created_at DESC LIMIT 1')
       const latestActivity = latestActivityStmt.get(contact.id) as { temperature: string, created_at: string } | undefined
       
+      // Get screenshot count
+      const screenshotCountStmt = db.prepare('SELECT COUNT(*) as count FROM activities WHERE contact_id = ? AND screenshot_id IS NOT NULL')
+      const screenshotCount = screenshotCountStmt.get(contact.id) as { count: number }
+      
       return {
         ...contact,
         auto_contact_attempts: activityCount.count, // Total engagements (all activities)
         has_two_way_communication: twoWayCount.count > 0,
         latest_temperature: latestActivity?.temperature || 'warm',
-        last_contact_date: latestActivity?.created_at || contact.last_contact_date
+        last_contact_date: latestActivity?.created_at || contact.last_contact_date,
+        screenshot_count: screenshotCount.count
       }
     })
   } finally {
@@ -52,7 +57,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Add auto-calculated metrics
-    const enhancedContacts = getContactsWithMetrics(contacts)
+    const enhancedContacts = getContactsWithMetrics(contacts as unknown as Record<string, unknown>[])
     
     return NextResponse.json(enhancedContacts)
   } catch (error) {

@@ -10,7 +10,7 @@ export default function ContactsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Your Contacts</h1>
           <p className="text-slate-600">
-            People you're building relationships with through sales activities
+            People you&apos;re building relationships with through sales activities
           </p>
         </div>
         

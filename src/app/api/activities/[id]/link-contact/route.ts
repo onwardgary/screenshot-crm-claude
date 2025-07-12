@@ -3,10 +3,11 @@ import { activityOperations } from '@/lib/database'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const activityId = parseInt(params.id)
+    const resolvedParams = await params
+    const activityId = parseInt(resolvedParams.id)
     const { contactId } = await request.json()
     
     activityOperations.linkToContact(activityId, contactId)

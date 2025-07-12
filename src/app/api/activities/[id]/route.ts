@@ -3,10 +3,11 @@ import { activityOperations } from '@/lib/database'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const resolvedParams = await params
+    const id = parseInt(resolvedParams.id)
     const updates = await request.json()
     
     const result = activityOperations.update(id, updates)
@@ -28,7 +29,7 @@ export async function PUT(
 // Add PATCH handler for Smart Organize compatibility
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   // PATCH and PUT do the same thing for activity updates
   return PUT(request, { params })
@@ -36,10 +37,11 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const resolvedParams = await params
+    const id = parseInt(resolvedParams.id)
     
     const result = activityOperations.delete(id)
     

@@ -27,7 +27,7 @@ db.exec(`
 // Add temperature column to existing tables
 try {
   db.exec(`ALTER TABLE activities ADD COLUMN temperature TEXT DEFAULT 'warm'`)
-} catch (e) {
+} catch {
   // Column already exists
 }
 

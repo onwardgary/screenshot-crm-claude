@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Activity, Flame, Circle } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -16,27 +17,33 @@ export default function ActivityStreakCalendar({
   activityStreak, 
   currentStreak 
 }: ActivityStreakCalendarProps) {
-  // Get current week (Monday - Sunday)
-  const getCurrentWeekDays = () => {
-    const days = []
-    const today = new Date()
-    
-    // Get Monday of current week
-    const dayOfWeek = today.getDay() // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-    const monday = new Date(today)
-    monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
-    
-    // Generate Monday through Sunday
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(monday)
-      date.setDate(monday.getDate() + i)
-      days.push(date)
-    }
-    
-    return days
-  }
+  const [currentWeekDays, setCurrentWeekDays] = useState<Date[]>([])
+  const [isClient, setIsClient] = useState(false)
 
-  const currentWeekDays = getCurrentWeekDays()
+  // Get current week (Monday - Sunday) - client-side only
+  useEffect(() => {
+    const getCurrentWeekDays = () => {
+      const days = []
+      const today = new Date()
+      
+      // Get Monday of current week
+      const dayOfWeek = today.getDay() // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+      const monday = new Date(today)
+      monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
+      
+      // Generate Monday through Sunday
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(monday)
+        date.setDate(monday.getDate() + i)
+        days.push(date)
+      }
+      
+      return days
+    }
+
+    setCurrentWeekDays(getCurrentWeekDays())
+    setIsClient(true)
+  }, [])
 
   // Get activity for a specific date
   const getActivityForDate = (date: Date) => {
@@ -76,16 +83,30 @@ export default function ActivityStreakCalendar({
         {/* Month Header */}
         <div className="text-center mb-3">
           <div className="text-sm font-medium text-slate-600">
-            {currentWeekDays[0].toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            {isClient && currentWeekDays.length > 0 
+              ? currentWeekDays[0].toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+              : '...'
+            }
           </div>
         </div>
 
         {/* Weekly Calendar (Monday - Sunday) */}
         <div className="grid grid-cols-7 gap-1">
-          {currentWeekDays.map((date, index) => {
-            const activity = getActivityForDate(date)
-            const hasActivity = activity && activity.daily_count > 0
-            const isToday = date.toDateString() === new Date().toDateString()
+          {!isClient || currentWeekDays.length === 0 ? (
+            // Loading state for SSR/hydration
+            Array.from({ length: 7 }).map((_, index) => (
+              <div key={index} className="flex flex-col items-center gap-1">
+                <div className="text-xs text-muted-foreground font-medium">...</div>
+                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+                  <Circle className="w-3 h-3 text-slate-400" />
+                </div>
+              </div>
+            ))
+          ) : (
+            currentWeekDays.map((date, index) => {
+              const activity = getActivityForDate(date)
+              const hasActivity = activity && activity.daily_count > 0
+              const isToday = date.toDateString() === new Date().toDateString()
             
             return (
               <div key={index} className="flex flex-col items-center gap-1">
@@ -120,7 +141,7 @@ export default function ActivityStreakCalendar({
                 </div>
               </div>
             )
-          })}
+          }))}
         </div>
 
         {/* Streak Achievement */}

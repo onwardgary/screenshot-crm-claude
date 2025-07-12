@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
       }
       
       activities = activities.filter(activity => 
-        new Date(activity.created_at) >= startDate
+        activity.created_at && new Date(activity.created_at) >= startDate
       )
     }
     

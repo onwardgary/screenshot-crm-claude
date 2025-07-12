@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { UserPlus, Link, Phone, MessageCircle, AlertCircle, CheckCircle2, XCircle } from 'lucide-react'
+import { UserPlus, Link, Phone, AlertCircle, CheckCircle2, XCircle } from 'lucide-react'
 import { detectExistingContactForActivities, type ExistingContact, type ContactDetectionResult } from '@/lib/contactDetection'
 
 interface Activity {
@@ -86,14 +86,29 @@ export default function ActivityAssignmentCard({
     }
   }
 
-  const getPlatformIcon = (platform: string) => {
-    switch (platform.toLowerCase()) {
-      case 'whatsapp': return '💬'
-      case 'instagram': return '📷'
-      case 'tiktok': return '🎵'
-      case 'messenger': return '💬'
-      default: return '📱'
+  const getPlatformIcon = (platform: string, size = 16) => {
+    const iconMap: Record<string, string> = {
+      'whatsapp': '/icons/whatsapp.svg',
+      'instagram': '/icons/instagram.svg',
+      'messenger': '/icons/messenger.svg',
+      'telegram': '/icons/telegram.svg',
+      'tiktok': '/icons/tiktok.svg',
+      'line': '/icons/line.svg',
+      'linkedin': '/icons/linkedin.svg',
+      'wechat': '/icons/wechat.svg'
     }
+    
+    const iconPath = iconMap[platform.toLowerCase()] || '/icons/phone.svg'
+    
+    return (
+      <img 
+        src={iconPath} 
+        alt={`${platform} icon`}
+        width={size} 
+        height={size}
+        className="inline-block"
+      />
+    )
   }
 
   const getTemperatureEmoji = (temperature?: string) => {
@@ -118,7 +133,10 @@ export default function ActivityAssignmentCard({
           <div className="flex items-center gap-2">
             <span className="font-medium">{activity.person_name}</span>
             <span className="text-sm text-muted-foreground">
-              {getPlatformIcon(activity.platform)} {activity.platform}
+              <span className="flex items-center gap-1">
+                {getPlatformIcon(activity.platform, 14)}
+                {activity.platform}
+              </span>
             </span>
             {activity.temperature && (
               <span className="text-sm">
@@ -271,11 +289,11 @@ export default function ActivityAssignmentCard({
                             )}
                           </div>
                           <div className="flex gap-1">
-                            {contact.platforms.map(platform => (
-                              <Badge key={platform} variant="secondary" className="text-xs">
-                                {platform}
+                            {contact.phone && (
+                              <Badge variant="secondary" className="text-xs">
+                                📱 {contact.phone}
                               </Badge>
-                            ))}
+                            )}
                           </div>
                         </div>
                       </div>

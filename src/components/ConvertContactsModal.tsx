@@ -49,7 +49,7 @@ export default function ConvertContactsModal({
     if (open && activities.length > 0) {
       initializeAssignments()
     }
-  }, [open, activities])
+  }, [open, activities]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const initializeAssignments = async () => {
     // Fetch existing contacts for detection
@@ -131,8 +131,8 @@ export default function ConvertContactsModal({
         description: `Activity successfully assigned to contact`
       })
 
-    } catch (error) {
-      console.error('Assignment error:', error)
+    } catch (err) {
+      console.error('Assignment error:', err)
       
       // Update status to error
       setAssignmentItems(prev => prev.map(item => 
@@ -173,7 +173,7 @@ export default function ConvertContactsModal({
           }
         })
         successCount++
-      } catch (error) {
+      } catch {
         errorCount++
       }
       

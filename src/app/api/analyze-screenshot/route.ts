@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import { screenshotOperations, activityOperations } from '@/lib/database'
+import { screenshotOperations } from '@/lib/database'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY

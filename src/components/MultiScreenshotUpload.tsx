@@ -23,7 +23,17 @@ interface UploadFile {
   overridePlatform?: string
   status: 'pending' | 'uploading' | 'analyzing' | 'done' | 'error'
   progress: number
-  result?: any
+  result?: {
+    platform: string;
+    activities: Array<{
+      person_name: string;
+      phone?: string;
+      platform: string;
+      temperature: string;
+      [key: string]: unknown;
+    }>;
+    [key: string]: unknown;
+  }
   error?: string
 }
 
@@ -61,7 +71,7 @@ export default function MultiScreenshotUpload() {
     })
   }
 
-  const setPlatformOverride = (fileId: string, platform: Platform) => {
+  const setPlatformOverride = (fileId: string, platform?: Platform) => {
     setFiles(prev => prev.map(f => 
       f.id === fileId ? { ...f, overridePlatform: platform } : f
     ))
@@ -69,7 +79,17 @@ export default function MultiScreenshotUpload() {
 
   const processFiles = async () => {
     setIsProcessing(true)
-    const results: any[] = []
+    const results: Array<{
+      platform: string;
+      activities: Array<{
+        person_name: string;
+        phone?: string;
+        platform: string;
+        temperature: string;
+        [key: string]: unknown;
+      }>;
+      [key: string]: unknown;
+    }> = []
 
     for (const uploadFile of files) {
       if (uploadFile.status === 'done') continue
@@ -134,11 +154,11 @@ export default function MultiScreenshotUpload() {
     // If we have successful results, store them and navigate to review
     if (results.length > 0) {
       // Map results with file platform overrides
-      const activitiesWithPlatforms = results.flatMap((r, index) => {
+      const activitiesWithPlatforms = results.flatMap((r) => {
         const file = files.find(f => f.result === r)
         const finalPlatform = file?.overridePlatform?.toLowerCase() || r.platform
         
-        return (r.activities || []).map((activity: any) => ({
+        return (r.activities || []).map((activity) => ({
           ...activity,
           platform: finalPlatform,
           screenshot_id: r.screenshotId
@@ -147,8 +167,8 @@ export default function MultiScreenshotUpload() {
       
       const combinedResults = {
         activities: activitiesWithPlatforms,
-        totalExtracted: results.reduce((sum, r) => sum + (r.totalExtracted || 0), 0),
-        screenshots: results.map((r, index) => {
+        totalExtracted: results.reduce((sum, r) => sum + (r.activities?.length || 0), 0),
+        screenshots: results.map((r) => {
           const file = files.find(f => f.result === r)
           return {
             id: r.screenshotId,
@@ -372,7 +392,7 @@ export default function MultiScreenshotUpload() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="w-full">
-                          <DropdownMenuItem onClick={() => setPlatformOverride(file.id, undefined as any)}>
+                          <DropdownMenuItem onClick={() => setPlatformOverride(file.id, undefined)}>
                             <span className="font-medium">Auto-detect</span>
                           </DropdownMenuItem>
                           {PLATFORMS.map((platform) => (

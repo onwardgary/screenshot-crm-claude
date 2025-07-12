@@ -1,18 +1,40 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
+import ContactActivityTimeline from '@/components/ContactActivityTimeline'
+import ScreenshotModal from '@/components/ScreenshotModal'
 import { 
   Phone, 
   Calendar,
   Users,
   ArrowLeftRight,
   ArrowRight,
-  Star
+  Star,
+  ChevronDown,
+  ChevronUp,
+  Image
 } from 'lucide-react'
+
+interface Activity {
+  id: number
+  screenshot_id?: number
+  person_name: string
+  phone?: string
+  platform: string
+  message_content?: string
+  message_from?: string
+  timestamp?: string
+  temperature?: 'hot' | 'warm' | 'cold'
+  notes?: string
+  is_group_chat?: boolean
+  contact_id?: number
+  created_at: string
+  updated_at?: string
+}
 
 interface Contact {
   id: number
@@ -34,6 +56,7 @@ interface Contact {
   has_two_way_communication?: boolean
   latest_temperature?: 'hot' | 'warm' | 'cold'
   days_since_last_contact?: number
+  screenshot_count?: number
 }
 
 interface ContactsListProps {
@@ -43,6 +66,11 @@ interface ContactsListProps {
 export default function ContactsList({ statusFilter }: ContactsListProps) {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
+  const [expandedContactId, setExpandedContactId] = useState<number | null>(null)
+  const [contactActivities, setContactActivities] = useState<Activity[]>([])
+  const [activitiesLoading, setActivitiesLoading] = useState(false)
+  const [screenshotModalId, setScreenshotModalId] = useState<number | null>(null)
+  const [isScreenshotModalOpen, setIsScreenshotModalOpen] = useState(false)
   const { toast } = useToast()
 
   const fetchContacts = useCallback(async () => {
@@ -220,21 +248,39 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
     }
   }
 
+  const getPlatformIcon = (platform: string, size = 14) => {
+    const iconMap: Record<string, string> = {
+      'whatsapp': '/icons/whatsapp.svg',
+      'instagram': '/icons/instagram.svg',
+      'messenger': '/icons/messenger.svg',
+      'telegram': '/icons/telegram.svg',
+      'tiktok': '/icons/tiktok.svg',
+      'line': '/icons/line.svg',
+      'linkedin': '/icons/linkedin.svg',
+      'wechat': '/icons/wechat.svg'
+    }
+    
+    const iconPath = iconMap[platform.toLowerCase()] || '/icons/phone.svg'
+    
+    return (
+      <img 
+        src={iconPath} 
+        alt={`${platform} icon`}
+        width={size} 
+        height={size}
+        className="inline-block"
+      />
+    )
+  }
+
   const getPlatformIcons = (platforms?: string[]) => {
     if (!platforms || platforms.length === 0) return null
-    
-    const iconMap: { [key: string]: string } = {
-      whatsapp: '💬',
-      instagram: '📷',
-      tiktok: '🎵',
-      messenger: '💬'
-    }
     
     return (
       <span className="flex items-center space-x-1">
         {platforms.map(platform => (
           <span key={platform} title={platform} className="text-sm">
-            {iconMap[platform.toLowerCase()] || '📱'}
+            {getPlatformIcon(platform, 14)}
           </span>
         ))}
       </span>
@@ -261,9 +307,46 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
       if (diffDays < 7) return `${diffDays} days ago`
       if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
       return `${Math.floor(diffDays / 30)} months ago`
-    } catch (error) {
+    } catch {
       return 'Unknown'
     }
+  }
+
+  const handleContactClick = async (contactId: number) => {
+    if (expandedContactId === contactId) {
+      // Collapse if already expanded
+      setExpandedContactId(null)
+      setContactActivities([])
+    } else {
+      // Expand and fetch activities
+      setExpandedContactId(contactId)
+      setActivitiesLoading(true)
+      try {
+        const response = await fetch(`/api/contacts/${contactId}/activities`)
+        if (response.ok) {
+          const activities = await response.json()
+          setContactActivities(activities)
+        } else {
+          console.error('Failed to fetch contact activities')
+          setContactActivities([])
+        }
+      } catch (error) {
+        console.error('Error fetching contact activities:', error)
+        setContactActivities([])
+      } finally {
+        setActivitiesLoading(false)
+      }
+    }
+  }
+
+  const handleViewScreenshot = (screenshotId: number) => {
+    setScreenshotModalId(screenshotId)
+    setIsScreenshotModalOpen(true)
+  }
+
+  const handleCloseScreenshotModal = () => {
+    setIsScreenshotModalOpen(false)
+    setScreenshotModalId(null)
   }
 
   const getNextFollowUpText = (followUpDate?: string) => {
@@ -285,7 +368,7 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
       if (diffDays === 0) return 'Today'
       if (diffDays === 1) return 'Tomorrow'
       return `In ${diffDays} days`
-    } catch (error) {
+    } catch {
       return 'Unknown'
     }
   }
@@ -298,7 +381,7 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
       const today = new Date().toISOString().split('T')[0]
       const followUp = followUpDate.split('T')[0] // Handle full datetime strings
       return followUp <= today
-    } catch (error) {
+    } catch {
       return false
     }
   }
@@ -341,8 +424,8 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
 
       <div className="grid gap-3">
         {contacts.map((contact) => (
-          <Card key={contact.id} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
+          <Card key={contact.id} className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-4" onClick={() => handleContactClick(contact.id!)}>
               {/* Header Row */}
               <div className="flex items-center justify-between mb-3">
                 <div className="flex-1">
@@ -379,6 +462,12 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
                 <span>
                   Last: {formatRelativeTime(contact.last_contact_date)}
                 </span>
+                {contact.screenshot_count && contact.screenshot_count > 0 && (
+                  <span className="flex items-center gap-1 text-blue-600">
+                    <Image className="w-3 h-3" />
+                    {contact.screenshot_count} screenshot{contact.screenshot_count !== 1 ? 's' : ''}
+                  </span>
+                )}
                 {contact.follow_up_date && (
                   <span className={isFollowUpDue(contact.follow_up_date) ? 'text-red-600 font-medium' : ''}>
                     Next: {getNextFollowUpText(contact.follow_up_date)}
@@ -428,10 +517,42 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
                   </p>
                 </div>
               )}
+
+              {/* Expansion Indicator */}
+              <div className="flex items-center justify-center mt-3 pt-3 border-t">
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  {expandedContactId === contact.id ? (
+                    <>
+                      <ChevronUp className="w-3 h-3" />
+                      Click to collapse
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-3 h-3" />
+                      Click to view activity history
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Expanded Timeline */}
+              {expandedContactId === contact.id && (
+                <ContactActivityTimeline
+                  activities={contactActivities}
+                  loading={activitiesLoading}
+                  onViewScreenshot={handleViewScreenshot}
+                />
+              )}
             </CardContent>
           </Card>
         ))}
       </div>
+
+      <ScreenshotModal
+        screenshotId={screenshotModalId}
+        isOpen={isScreenshotModalOpen}
+        onClose={handleCloseScreenshotModal}
+      />
     </div>
   )
 }

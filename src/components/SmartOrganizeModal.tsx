@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Users, AlertCircle, CheckCircle, ArrowRight, ChevronDown, Maximize2, Minimize2 } from 'lucide-react'
+import { X, Users, AlertCircle, ChevronDown, Maximize2, Minimize2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { findSimilarNames, fuzzyMatch } from '@/lib/smartDetection'
 
@@ -52,7 +52,7 @@ export default function SmartOrganizeModal({ isOpen, onClose, activities, onComp
     if (isOpen && activities.length > 0) {
       analyzeActivitiesWithContacts()
     }
-  }, [isOpen, activities])
+  }, [isOpen, activities]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const analyzeActivitiesWithContacts = async () => {
     setIsAnalyzing(true)
@@ -133,7 +133,6 @@ export default function SmartOrganizeModal({ isOpen, onClose, activities, onComp
       // Check if this activity can join any existing group
       for (const [groupName, groupActivities] of groups.entries()) {
         // CRITICAL: Check phone number compatibility first
-        const groupHasPhone = groupActivities.some(a => a.phone)
         const groupPhone = groupActivities.find(a => a.phone)?.phone
         
         // If both activity and group have phone numbers, they must match
@@ -487,7 +486,7 @@ export default function SmartOrganizeModal({ isOpen, onClose, activities, onComp
                                           </span>
                                         </div>
                                         {activity.message_content && (
-                                          <p className="text-gray-600 truncate">"{activity.message_content}"</p>
+                                          <p className="text-gray-600 truncate">&ldquo;{activity.message_content}&rdquo;</p>
                                         )}
                                         {activity.phone && (
                                           <p className="text-xs text-gray-500 mt-1">📱 {activity.phone}</p>
