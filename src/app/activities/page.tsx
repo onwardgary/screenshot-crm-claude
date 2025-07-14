@@ -7,6 +7,7 @@ import BulkActionBar from '@/components/BulkActionBar'
 import OrganizeContactModal from '@/components/OrganizeContactModal'
 import ConvertContactsModal from '@/components/ConvertContactsModal'
 import SmartOrganizeModal from '@/components/SmartOrganizeModal'
+import StickyQuickAssign from '@/components/StickyQuickAssign'
 import Navbar from '@/components/Navbar'
 import { useToast } from '@/hooks/use-toast'
 import { analyzeActivities } from '@/lib/smartDetection'
@@ -128,6 +129,18 @@ export default function ActivitiesPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <Navbar currentPage="activities" />
       
+      {/* Sticky Quick Assign Component */}
+      <StickyQuickAssign
+        selectedActivityIds={selectedActivityIds}
+        onAssignmentSuccess={() => {
+          setSelectedActivityIds([])
+          fetchActivities()
+          fetchStats()
+        }}
+        onCreateNew={() => setShowConvertModal(true)}
+        onClearSelection={() => setSelectedActivityIds([])}
+      />
+      
       <div className="max-w-6xl mx-auto px-6 py-8 pb-24">
         <div className="mb-6 flex justify-between items-start">
           <div>
@@ -166,6 +179,7 @@ export default function ActivitiesPage() {
           onSelectionChange={setSelectedActivityIds}
           selectedIds={selectedActivityIds}
         />
+
       </div>
 
       <BulkActionBar

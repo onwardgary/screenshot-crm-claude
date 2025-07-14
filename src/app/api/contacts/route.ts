@@ -71,34 +71,118 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '15')
     
+    // Quick search mode for assignment interface
+    const quickSearch = searchParams.get('quickSearch') === 'true'
+    const fuzzySearch = searchParams.get('fuzzy') === 'true'
+    
     // Get base contacts
     const contacts = status ? contactOperations.getByStatus(status) : contactOperations.getAll()
     
     // Add auto-calculated metrics first
     let enhancedContacts = getContactsWithMetrics(contacts as unknown as Record<string, unknown>[])
     
-    // Apply search filter
+    // Apply search filter with fuzzy matching
     if (search) {
       const searchLower = search.toLowerCase()
-      enhancedContacts = enhancedContacts.filter(contact => {
-        const c = contact as Record<string, unknown>
-        switch (searchType) {
-          case 'name':
-            return (c.name as string)?.toLowerCase().includes(searchLower)
-          case 'phone':
-            return c.phone && (c.phone as string).toLowerCase().includes(searchLower)
-          case 'notes':
-            return c.notes && (c.notes as string).toLowerCase().includes(searchLower)
-          case 'platforms':
-            return c.platforms && (c.platforms as string[]).some((p: string) => p.toLowerCase().includes(searchLower))
-          case 'all':
-          default:
-            return (c.name as string)?.toLowerCase().includes(searchLower) ||
-              (c.phone && (c.phone as string).toLowerCase().includes(searchLower)) ||
-              (c.notes && (c.notes as string).toLowerCase().includes(searchLower)) ||
-              (c.platforms && (c.platforms as string[]).some((p: string) => p.toLowerCase().includes(searchLower)))
-        }
-      })
+      
+      if (fuzzySearch) {
+        // Enhanced fuzzy search with relevance scoring
+        const contactsWithScore = enhancedContacts.map(contact => {
+          const c = contact as Record<string, unknown>
+          let score = 0
+          let matched = false
+          
+          const name = (c.name as string) || ''
+          const phone = (c.phone as string) || ''
+          const notes = (c.notes as string) || ''
+          const platforms = (c.platforms as string[]) || []
+          
+          // Exact match bonus (highest score)
+          if (name.toLowerCase() === searchLower) {
+            score += 100
+            matched = true
+          } else if (name.toLowerCase().includes(searchLower)) {
+            // Substring match with position bonus
+            const index = name.toLowerCase().indexOf(searchLower)
+            score += 50 - (index * 2) // Earlier matches score higher
+            matched = true
+          } else {
+            // Fuzzy name matching (word boundaries, initials)
+            const nameWords = name.toLowerCase().split(/\s+/)
+            const searchWords = searchLower.split(/\s+/)
+            
+            // Check if any search word starts with any name word
+            for (const searchWord of searchWords) {
+              for (const nameWord of nameWords) {
+                if (nameWord.startsWith(searchWord) && searchWord.length >= 2) {
+                  score += 30 - (searchWord.length - nameWord.length) * 2
+                  matched = true
+                }
+                // Check for initials match
+                if (searchWord.length === 1 && nameWord.startsWith(searchWord)) {
+                  score += 20
+                  matched = true
+                }
+              }
+            }
+            
+            // Check for acronym match (first letters)
+            const initials = nameWords.map(word => word[0]).join('')
+            if (initials.includes(searchLower)) {
+              score += 25
+              matched = true
+            }
+          }
+          
+          // Phone number matching (only when search contains digits)
+          const searchDigits = searchLower.replace(/\D/g, '')
+          if (phone && searchDigits.length > 0 && phone.replace(/\D/g, '').includes(searchDigits)) {
+            score += 40
+            matched = true
+          }
+          
+          // Notes matching (lower priority)
+          if (notes.toLowerCase().includes(searchLower)) {
+            score += 15
+            matched = true
+          }
+          
+          // Platform matching
+          if (platforms.some((p: string) => p.toLowerCase().includes(searchLower))) {
+            score += 10
+            matched = true
+          }
+          
+          return { contact, score, matched }
+        })
+        
+        // Filter to only matched contacts and sort by relevance score
+        enhancedContacts = contactsWithScore
+          .filter(item => item.matched)
+          .sort((a, b) => b.score - a.score)
+          .map(item => item.contact)
+      } else {
+        // Standard substring search (legacy behavior)
+        enhancedContacts = enhancedContacts.filter(contact => {
+          const c = contact as Record<string, unknown>
+          switch (searchType) {
+            case 'name':
+              return (c.name as string)?.toLowerCase().includes(searchLower)
+            case 'phone':
+              return c.phone && (c.phone as string).toLowerCase().includes(searchLower)
+            case 'notes':
+              return c.notes && (c.notes as string).toLowerCase().includes(searchLower)
+            case 'platforms':
+              return c.platforms && (c.platforms as string[]).some((p: string) => p.toLowerCase().includes(searchLower))
+            case 'all':
+            default:
+              return (c.name as string)?.toLowerCase().includes(searchLower) ||
+                (c.phone && (c.phone as string).toLowerCase().includes(searchLower)) ||
+                (c.notes && (c.notes as string).toLowerCase().includes(searchLower)) ||
+                (c.platforms && (c.platforms as string[]).some((p: string) => p.toLowerCase().includes(searchLower)))
+          }
+        })
+      }
     }
     
     // Apply relationship status filter (in addition to the status parameter)
@@ -234,7 +318,22 @@ export async function GET(request: NextRequest) {
     const paginatedContacts = enhancedContacts.slice(startIndex, endIndex)
     const hasMore = endIndex < totalContacts
     
-    // Return paginated response with metadata
+    // For quick search, return simplified format without pagination metadata
+    if (quickSearch) {
+      // Return only essential fields for assignment interface
+      const simplifiedContacts = paginatedContacts.map(contact => ({
+        id: (contact as Record<string, unknown>).id,
+        name: (contact as Record<string, unknown>).name,
+        phone: (contact as Record<string, unknown>).phone,
+        platforms: (contact as Record<string, unknown>).platforms,
+        auto_contact_attempts: contact.auto_contact_attempts,
+        latest_temperature: contact.latest_temperature
+      }))
+      
+      return NextResponse.json(simplifiedContacts)
+    }
+    
+    // Return full paginated response with metadata
     return NextResponse.json({
       contacts: paginatedContacts,
       pagination: {
