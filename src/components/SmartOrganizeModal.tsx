@@ -67,15 +67,30 @@ export default function SmartOrganizeModal({ isOpen, onClose, activities, onComp
   const fetchExistingContactsSync = async (): Promise<ExistingContact[]> => {
     try {
       console.log('📡 Fetching existing contacts from /api/contacts...')
-      const response = await fetch('/api/contacts')
+      // Fetch all contacts by using a large limit for contact detection
+      const response = await fetch('/api/contacts?limit=1000')
       console.log('📡 Response status:', response.status, response.statusText)
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
       
-      const contacts = await response.json()
-      console.log('🔍 Fetched existing contacts:', contacts.length, contacts)
+      const data = await response.json()
+      
+      // Handle new paginated response format
+      let contacts: ExistingContact[]
+      if (data && data.contacts && Array.isArray(data.contacts)) {
+        contacts = data.contacts
+        console.log('🔍 Fetched existing contacts:', contacts.length, contacts)
+      } else if (Array.isArray(data)) {
+        // Fallback for old response format
+        contacts = data
+        console.log('🔍 Fetched existing contacts (legacy format):', contacts.length, contacts)
+      } else {
+        console.error('🚨 Unexpected API response format:', data)
+        contacts = []
+      }
+      
       setExistingContacts(contacts)
       return contacts
     } catch (error) {

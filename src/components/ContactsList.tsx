@@ -1,12 +1,17 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { ContactFilterState } from '@/components/ContactFilters'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/hooks/use-toast'
 import ContactActivityTimeline from '@/components/ContactActivityTimeline'
+import ContactHistoryTimeline from '@/components/ContactHistoryTimeline'
 import ScreenshotModal from '@/components/ScreenshotModal'
+import LoadMoreButton from '@/components/LoadMoreButton'
+import ContactCardSkeleton from '@/components/ContactCardSkeleton'
 import { 
   Phone, 
   Calendar,
@@ -36,12 +41,22 @@ interface Activity {
   updated_at?: string
 }
 
+interface ContactHistory {
+  id: number
+  contact_id: number
+  action_type: 'customer_conversion' | 'status_change' | 'follow_up_scheduled' | 'bulk_operation' | 'created'
+  old_value?: string
+  new_value?: string
+  description: string
+  created_at: string
+}
+
 interface Contact {
   id: number
   name: string
   phone?: string
   platforms?: string[]
-  relationship_status?: 'new' | 'active' | 'converted' | 'dormant'
+  relationship_status?: 'converted' | 'inactive' | null
   relationship_type?: 'family' | 'friend' | 'stranger' | 'referral' | 'existing_customer'
   last_contact_date?: string
   contact_attempts?: number
@@ -57,27 +72,129 @@ interface Contact {
   latest_temperature?: 'hot' | 'warm' | 'cold'
   days_since_last_contact?: number
   screenshot_count?: number
+  // New separate status fields
+  is_new?: boolean
+  is_active?: boolean
 }
 
 interface ContactsListProps {
-  statusFilter?: 'new' | 'active' | 'converted' | 'dormant'
+  statusFilter?: 'converted' | 'inactive' | null
+  filters?: ContactFilterState
+  onSelectionChange?: (selectedIds: number[]) => void
+  selectedIds?: number[]
 }
 
-export default function ContactsList({ statusFilter }: ContactsListProps) {
+export default function ContactsList({ statusFilter, filters, onSelectionChange, selectedIds = [] }: ContactsListProps) {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 15,
+    total: 0,
+    hasMore: false,
+    totalPages: 0
+  })
   const [expandedContactId, setExpandedContactId] = useState<number | null>(null)
   const [contactActivities, setContactActivities] = useState<Activity[]>([])
   const [activitiesLoading, setActivitiesLoading] = useState(false)
+  const [contactHistory, setContactHistory] = useState<ContactHistory[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
   const [screenshotModalId, setScreenshotModalId] = useState<number | null>(null)
   const [isScreenshotModalOpen, setIsScreenshotModalOpen] = useState(false)
+  const [selectedContacts, setSelectedContacts] = useState<Set<number>>(new Set())
   const { toast } = useToast()
 
-  const fetchContacts = useCallback(async () => {
+  // Sync selectedContacts with external selectedIds
+  useEffect(() => {
+    setSelectedContacts(new Set(selectedIds))
+  }, [selectedIds])
+
+  // Mobile detection and responsive page size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768) // md breakpoint
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // Update pagination limit based on screen size
+  useEffect(() => {
+    const newLimit = isMobile ? 10 : 15
+    if (pagination.limit !== newLimit) {
+      setPagination(prev => ({ ...prev, limit: newLimit }))
+    }
+  }, [isMobile, pagination.limit])
+
+  const toggleSelection = (contactId: number) => {
+    const newSelected = new Set(selectedContacts)
+    if (newSelected.has(contactId)) {
+      newSelected.delete(contactId)
+    } else {
+      newSelected.add(contactId)
+    }
+    setSelectedContacts(newSelected)
+    onSelectionChange?.(Array.from(newSelected))
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedContacts.size === contacts.length && contacts.length > 0) {
+      // Deselect all
+      setSelectedContacts(new Set())
+      onSelectionChange?.([])
+    } else {
+      // Select all
+      const allIds = new Set(contacts.map(c => c.id!))
+      setSelectedContacts(allIds)
+      onSelectionChange?.(Array.from(allIds))
+    }
+  }
+
+  const fetchContacts = useCallback(async (page = 1, append = false) => {
+    if (append) {
+      setLoadingMore(true)
+    } else {
+      setLoading(true)
+      setContacts([]) // Clear contacts when starting fresh
+      setPagination(prev => ({ ...prev, page: 1 }))
+    }
+    
     try {
-      const url = statusFilter 
-        ? `/api/contacts?status=${statusFilter}` 
-        : `/api/contacts`
+      const params = new URLSearchParams()
+      
+      // Add pagination parameters
+      params.append('page', page.toString())
+      params.append('limit', pagination.limit.toString())
+      
+      // Add legacy status filter for backward compatibility
+      if (statusFilter) {
+        params.append('status', statusFilter)
+      }
+      
+      // Add new filter parameters
+      if (filters) {
+        if (filters.search) {
+          params.append('search', filters.search)
+          params.append('searchType', filters.searchType)
+        }
+        if (filters.relationshipStatus.length > 0) params.append('relationshipStatus', filters.relationshipStatus.join(','))
+        if (filters.relationshipType.length > 0) params.append('relationshipType', filters.relationshipType.join(','))
+        if (filters.platforms.length > 0) params.append('platforms', filters.platforms.join(','))
+        if (filters.temperature.length > 0) params.append('temperature', filters.temperature.join(','))
+        if (filters.dateRange && filters.dateRange !== 'all') params.append('dateRange', filters.dateRange)
+        if (filters.hasTwoWay && filters.hasTwoWay !== 'all') params.append('hasTwoWay', filters.hasTwoWay)
+        if (filters.hasPhone && filters.hasPhone !== 'all') params.append('hasPhone', filters.hasPhone)
+        if (filters.isNew !== null) params.append('isNew', filters.isNew.toString())
+        if (filters.isActive !== null) params.append('isActive', filters.isActive.toString())
+        if (filters.sort) params.append('sort', filters.sort)
+        if (filters.order) params.append('order', filters.order)
+      }
+      
+      const url = `/api/contacts?${params.toString()}`
       const response = await fetch(url)
       
       if (!response.ok) {
@@ -87,11 +204,16 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
       const data = await response.json()
       console.log('Fetched contacts data:', data)
       
-      // Ensure data is an array
-      if (Array.isArray(data)) {
-        setContacts(data)
+      // Handle new paginated response format
+      if (data && data.contacts && Array.isArray(data.contacts)) {
+        if (append) {
+          setContacts(prev => [...prev, ...data.contacts])
+        } else {
+          setContacts(data.contacts)
+        }
+        setPagination(data.pagination)
       } else {
-        console.error('Expected array but got:', typeof data, data)
+        console.error('Expected paginated response but got:', typeof data, data)
         setContacts([])
         toast({
           title: "Error loading contacts",
@@ -101,7 +223,9 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
       }
     } catch (error) {
       console.error('Failed to fetch contacts:', error)
-      setContacts([])
+      if (!append) {
+        setContacts([])
+      }
       toast({
         title: "Error loading contacts", 
         description: "Failed to load contacts. Please try again.",
@@ -109,20 +233,44 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
       })
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
-  }, [statusFilter, toast])
+  }, [statusFilter, filters, toast, pagination.limit])
 
   useEffect(() => {
     fetchContacts()
-  }, [fetchContacts])
+  }, [fetchContacts, filters]) // Add filters as dependency
+
+  const handleLoadMore = () => {
+    if (!loadingMore && pagination.hasMore) {
+      fetchContacts(pagination.page + 1, true)
+    }
+  }
 
   const handleMarkAsCustomer = async (contactId: number) => {
     try {
+      // Get current contact to log old status
+      const contact = contacts.find(c => c.id === contactId)
+      const oldStatus = contact?.relationship_status || 'new'
+
+      // Update contact status
       await fetch(`/api/contacts/${contactId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           relationship_status: 'converted'
+        })
+      })
+
+      // Log history entry
+      await fetch(`/api/contacts/${contactId}/history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action_type: 'customer_conversion',
+          old_value: oldStatus,
+          new_value: 'converted',
+          description: 'Marked as customer'
         })
       })
       
@@ -199,22 +347,38 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
     }
   }
 
-  const getStatusBadge = (status?: string) => {
-    switch (status) {
-      case 'new':
-        return <Badge className="bg-blue-100 text-blue-800">NEW</Badge>
-      case 'active':
-        return <Badge className="bg-green-100 text-green-800">ACTIVE</Badge>
-      case 'converted':
-        return <Badge className="bg-purple-100 text-purple-800 flex items-center gap-1">
+  const getStatusBadges = (contact: Contact) => {
+    const badges = []
+    
+    // New badge (time-based)
+    if (contact.is_new) {
+      badges.push(
+        <Badge key="new" className="bg-blue-100 text-blue-800">NEW</Badge>
+      )
+    }
+    
+    // Active badge (engagement-based)
+    if (contact.is_active) {
+      badges.push(
+        <Badge key="active" className="bg-green-100 text-green-800">ACTIVE</Badge>
+      )
+    }
+    
+    // Business status badges
+    if (contact.relationship_status === 'converted') {
+      badges.push(
+        <Badge key="customer" className="bg-purple-100 text-purple-800 flex items-center gap-1">
           <Star className="w-3 h-3" />
           CUSTOMER
         </Badge>
-      case 'dormant':
-        return <Badge className="bg-gray-100 text-gray-800">DORMANT</Badge>
-      default:
-        return <Badge variant="outline">UNKNOWN</Badge>
+      )
+    } else if (contact.relationship_status === 'inactive') {
+      badges.push(
+        <Badge key="inactive" className="bg-gray-100 text-gray-800">INACTIVE</Badge>
+      )
     }
+    
+    return badges
   }
 
   const getTemperatureBadge = (temperature?: string) => {
@@ -317,24 +481,44 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
       // Collapse if already expanded
       setExpandedContactId(null)
       setContactActivities([])
+      setContactHistory([])
     } else {
-      // Expand and fetch activities
+      // Expand and fetch activities and history
       setExpandedContactId(contactId)
       setActivitiesLoading(true)
+      setHistoryLoading(true)
+      
       try {
-        const response = await fetch(`/api/contacts/${contactId}/activities`)
-        if (response.ok) {
-          const activities = await response.json()
+        // Fetch activities and history in parallel
+        const [activitiesResponse, historyResponse] = await Promise.all([
+          fetch(`/api/contacts/${contactId}/activities`),
+          fetch(`/api/contacts/${contactId}/history`)
+        ])
+        
+        // Handle activities response
+        if (activitiesResponse.ok) {
+          const activities = await activitiesResponse.json()
           setContactActivities(activities)
         } else {
           console.error('Failed to fetch contact activities')
           setContactActivities([])
         }
+        
+        // Handle history response
+        if (historyResponse.ok) {
+          const history = await historyResponse.json()
+          setContactHistory(history)
+        } else {
+          console.error('Failed to fetch contact history')
+          setContactHistory([])
+        }
       } catch (error) {
-        console.error('Error fetching contact activities:', error)
+        console.error('Error fetching contact data:', error)
         setContactActivities([])
+        setContactHistory([])
       } finally {
         setActivitiesLoading(false)
+        setHistoryLoading(false)
       }
     }
   }
@@ -388,11 +572,15 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-center">
-          <Users className="h-8 w-8 animate-spin mx-auto mb-2" />
-          <p className="text-muted-foreground">Loading contacts...</p>
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-4 h-4 bg-slate-200 rounded animate-pulse"></div>
+            <div className="h-6 bg-slate-200 rounded w-32 animate-pulse"></div>
+          </div>
+          <div className="h-4 bg-slate-200 rounded w-24 animate-pulse"></div>
         </div>
+        <ContactCardSkeleton count={5} />
       </div>
     )
   }
@@ -414,9 +602,18 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">
-          {statusFilter ? `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Contacts` : 'All Contacts'}
-        </h2>
+        <div className="flex items-center gap-3">
+          {contacts.length > 0 && (
+            <Checkbox
+              checked={selectedContacts.size === contacts.length}
+              onCheckedChange={toggleSelectAll}
+              aria-label="Select all contacts"
+            />
+          )}
+          <h2 className="text-xl font-semibold">
+            {statusFilter ? `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Contacts` : 'All Contacts'}
+          </h2>
+        </div>
         <div className="text-sm text-muted-foreground">
           {contacts.length} {contacts.length === 1 ? 'contact' : 'contacts'}
         </div>
@@ -424,28 +621,41 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
 
       <div className="grid gap-3">
         {contacts.map((contact) => (
-          <Card key={contact.id} className="hover:shadow-md transition-shadow cursor-pointer">
+          <Card 
+            key={contact.id} 
+            className={`hover:shadow-md transition-shadow cursor-pointer ${
+              selectedContacts.has(contact.id!) ? 'ring-2 ring-purple-500 bg-purple-50' : ''
+            }`}
+          >
             <CardContent className="p-4" onClick={() => handleContactClick(contact.id!)}>
               {/* Header Row */}
               <div className="flex items-center justify-between mb-3">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-slate-900">{contact.name}</h3>
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    {contact.phone && (
-                      <span className="flex items-center gap-1">
-                        <Phone className="w-3 h-3" />
-                        {contact.phone}
-                      </span>
-                    )}
-                    {contact.phone && contact.platforms && contact.platforms.length > 0 && (
-                      <span className="text-slate-400">•</span>
-                    )}
-                    {getPlatformIcons(contact.platforms)}
+                <div className="flex items-center gap-3 flex-1">
+                  <Checkbox
+                    checked={selectedContacts.has(contact.id!)}
+                    onCheckedChange={() => toggleSelection(contact.id!)}
+                    aria-label={`Select ${contact.name}`}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-slate-900">{contact.name}</h3>
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      {contact.phone && (
+                        <span className="flex items-center gap-1">
+                          <Phone className="w-3 h-3" />
+                          {contact.phone}
+                        </span>
+                      )}
+                      {contact.phone && contact.platforms && contact.platforms.length > 0 && (
+                        <span className="text-slate-400">•</span>
+                      )}
+                      {getPlatformIcons(contact.platforms)}
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {getTemperatureBadge(contact.latest_temperature)}
-                  {getStatusBadge(contact.relationship_status)}
+                  {getStatusBadges(contact)}
                 </div>
               </div>
 
@@ -537,16 +747,37 @@ export default function ContactsList({ statusFilter }: ContactsListProps) {
 
               {/* Expanded Timeline */}
               {expandedContactId === contact.id && (
-                <ContactActivityTimeline
-                  activities={contactActivities}
-                  loading={activitiesLoading}
-                  onViewScreenshot={handleViewScreenshot}
-                />
+                <>
+                  <ContactActivityTimeline
+                    activities={contactActivities}
+                    loading={activitiesLoading}
+                    onViewScreenshot={handleViewScreenshot}
+                  />
+                  <ContactHistoryTimeline
+                    history={contactHistory}
+                    loading={historyLoading}
+                  />
+                </>
               )}
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {/* Loading skeletons for "Load More" */}
+      {loadingMore && (
+        <ContactCardSkeleton count={3} />
+      )}
+
+      {/* Load More Button */}
+      {!loading && (
+        <LoadMoreButton
+          onClick={handleLoadMore}
+          loading={loadingMore}
+          disabled={!pagination.hasMore}
+          remainingCount={pagination.total - contacts.length}
+        />
+      )}
 
       <ScreenshotModal
         screenshotId={screenshotModalId}

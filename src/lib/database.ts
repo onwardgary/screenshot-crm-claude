@@ -38,7 +38,7 @@ db.exec(`
     name TEXT NOT NULL,
     phone TEXT,
     platforms TEXT DEFAULT '[]', -- JSON array of platforms they use
-    relationship_status TEXT DEFAULT 'new', -- new, active, converted, dormant
+    relationship_status TEXT DEFAULT NULL, -- null=prospect, converted=customer, inactive=dormant
     relationship_type TEXT, -- family, friend, stranger, referral, existing_customer
     last_contact_date DATE,
     contact_attempts INTEGER DEFAULT 0,
@@ -46,8 +46,37 @@ db.exec(`
     notes TEXT,
     follow_up_date DATE,
     follow_up_notes TEXT,
+    is_new BOOLEAN DEFAULT 1, -- Time-based: first 7 days
+    is_active BOOLEAN DEFAULT 0, -- Engagement-based: has two-way communication
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`)
+
+// Add new columns to existing table if they don't exist
+try {
+  db.exec(`ALTER TABLE contacts ADD COLUMN is_new BOOLEAN DEFAULT 1`)
+} catch {
+  // Column already exists
+}
+
+try {
+  db.exec(`ALTER TABLE contacts ADD COLUMN is_active BOOLEAN DEFAULT 0`)
+} catch {
+  // Column already exists
+}
+
+// Contact history table for tracking changes
+db.exec(`
+  CREATE TABLE IF NOT EXISTS contact_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contact_id INTEGER NOT NULL,
+    action_type TEXT NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
   )
 `)
 
@@ -85,7 +114,7 @@ export interface Contact {
   name: string
   phone?: string
   platforms?: string[] // Array of platforms they use
-  relationship_status?: 'new' | 'active' | 'converted' | 'dormant'
+  relationship_status?: 'converted' | 'inactive' | null // Business outcome: null=prospect, converted=customer, inactive=dormant
   relationship_type?: 'family' | 'friend' | 'stranger' | 'referral' | 'existing_customer'
   last_contact_date?: string
   contact_attempts?: number // Total engagements (activities linked to this contact)
@@ -93,8 +122,20 @@ export interface Contact {
   notes?: string
   follow_up_date?: string
   follow_up_notes?: string
+  is_new?: boolean // Time-based: first 7 days after creation
+  is_active?: boolean // Engagement-based: has two-way communication
   created_at?: string
   updated_at?: string
+}
+
+export interface ContactHistory {
+  id?: number
+  contact_id: number
+  action_type: 'customer_conversion' | 'status_change' | 'follow_up_scheduled' | 'bulk_operation' | 'created'
+  old_value?: string
+  new_value?: string
+  description: string
+  created_at?: string
 }
 
 // Activity operations
@@ -203,7 +244,7 @@ export const contactOperations = {
   },
 
   // Get contacts by status
-  getByStatus: (status: 'new' | 'active' | 'converted' | 'dormant') => {
+  getByStatus: (status: 'new' | 'active' | 'converted' | 'inactive') => {
     const stmt = db.prepare('SELECT * FROM contacts WHERE relationship_status = ? ORDER BY updated_at DESC')
     const rows = stmt.all(status) as Record<string, unknown>[]
     return rows.map(row => ({
@@ -262,6 +303,51 @@ export const contactOperations = {
       WHERE id = ?
     `)
     return stmt.run(today, id)
+  },
+
+  // Update is_new field based on 7-day rule
+  updateIsNewStatus: () => {
+    const stmt = db.prepare(`
+      UPDATE contacts 
+      SET is_new = CASE 
+        WHEN created_at >= datetime('now', '-7 days') THEN 1
+        ELSE 0
+      END,
+      updated_at = CURRENT_TIMESTAMP
+    `)
+    return stmt.run()
+  },
+
+  // Update is_active field based on two-way communication
+  updateIsActiveStatus: () => {
+    const stmt = db.prepare(`
+      UPDATE contacts 
+      SET is_active = CASE
+        WHEN EXISTS (
+          SELECT 1 FROM activities a 
+          WHERE a.contact_id = contacts.id 
+          AND a.message_from = 'contact'
+        ) THEN 1
+        ELSE 0
+      END,
+      updated_at = CURRENT_TIMESTAMP
+    `)
+    return stmt.run()
+  },
+
+  // Update contacts with no activity for 1+ month to "inactive" relationship_status
+  updateInactiveContacts: () => {
+    const stmt = db.prepare(`
+      UPDATE contacts 
+      SET relationship_status = 'inactive', 
+          updated_at = CURRENT_TIMESTAMP
+      WHERE relationship_status IS NULL  -- Only prospects, not customers
+      AND (
+        last_contact_date < datetime('now', '-30 days') OR
+        (last_contact_date IS NULL AND created_at < datetime('now', '-30 days'))
+      )
+    `)
+    return stmt.run()
   }
 }
 
@@ -322,7 +408,7 @@ export const analyticsOperations = {
         COUNT(CASE WHEN relationship_status = 'new' THEN 1 END) as new_contacts,
         COUNT(CASE WHEN relationship_status = 'active' THEN 1 END) as active_contacts,
         COUNT(CASE WHEN relationship_status = 'converted' THEN 1 END) as converted_contacts,
-        COUNT(CASE WHEN relationship_status = 'dormant' THEN 1 END) as dormant_contacts,
+        COUNT(CASE WHEN relationship_status = 'inactive' THEN 1 END) as inactive_contacts,
         AVG(contact_attempts) as avg_contact_attempts,
         AVG(response_rate) as avg_response_rate
       FROM contacts
@@ -342,6 +428,129 @@ export const analyticsOperations = {
     `)
     
     return stmt.all()
+  }
+}
+
+// Contact history operations
+export const contactHistoryOperations = {
+  // Create new history entry
+  create: (history: Omit<ContactHistory, 'id'>) => {
+    const stmt = db.prepare(`
+      INSERT INTO contact_history (contact_id, action_type, old_value, new_value, description)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+    return stmt.run(
+      history.contact_id,
+      history.action_type,
+      history.old_value || null,
+      history.new_value || null,
+      history.description
+    )
+  },
+
+  // Get history for a contact
+  getByContactId: (contactId: number) => {
+    const stmt = db.prepare(`
+      SELECT * FROM contact_history 
+      WHERE contact_id = ? 
+      ORDER BY created_at DESC
+    `)
+    return stmt.all(contactId) as ContactHistory[]
+  },
+
+  // Get all history entries
+  getAll: () => {
+    const stmt = db.prepare('SELECT * FROM contact_history ORDER BY created_at DESC')
+    return stmt.all() as ContactHistory[]
+  },
+
+  // Delete history for a contact (when contact is deleted)
+  deleteByContactId: (contactId: number) => {
+    const stmt = db.prepare('DELETE FROM contact_history WHERE contact_id = ?')
+    return stmt.run(contactId)
+  }
+}
+
+// Migration script for transitioning to separate fields system
+export const migrateToSeparateFieldsSystem = () => {
+  console.log('Starting migration to separate fields system...')
+  
+  try {
+    // Step 1: Calculate is_new field based on created_at
+    const updateIsNewStmt = db.prepare(`
+      UPDATE contacts 
+      SET is_new = CASE 
+        WHEN created_at >= datetime('now', '-7 days') THEN 1
+        ELSE 0
+      END
+    `)
+    const isNewResult = updateIsNewStmt.run()
+    console.log(`Updated is_new field for ${isNewResult.changes} contacts`)
+    
+    // Step 2: Calculate is_active field based on two-way communication
+    const updateIsActiveStmt = db.prepare(`
+      UPDATE contacts 
+      SET is_active = CASE
+        WHEN EXISTS (
+          SELECT 1 FROM activities a 
+          WHERE a.contact_id = contacts.id 
+          AND a.message_from = 'contact'
+        ) THEN 1
+        ELSE 0
+      END
+    `)
+    const isActiveResult = updateIsActiveStmt.run()
+    console.log(`Updated is_active field for ${isActiveResult.changes} contacts`)
+    
+    // Step 3: Convert old relationship_status to new system
+    const migrateStatusStmt = db.prepare(`
+      UPDATE contacts 
+      SET relationship_status = CASE 
+        WHEN relationship_status = 'converted' THEN 'converted'
+        WHEN relationship_status = 'dormant' THEN 'inactive'
+        WHEN relationship_status = 'inactive' THEN 'inactive'
+        ELSE NULL  -- 'new' and 'active' become null (prospects)
+      END
+    `)
+    const statusResult = migrateStatusStmt.run()
+    console.log(`Migrated relationship_status for ${statusResult.changes} contacts`)
+    
+    console.log('Migration to separate fields system completed successfully!')
+    
+    return {
+      success: true,
+      isNewUpdated: isNewResult.changes,
+      isActiveUpdated: isActiveResult.changes,
+      statusMigrated: statusResult.changes
+    }
+  } catch (error) {
+    console.error('Migration failed:', error)
+    return {
+      success: false,
+      error: error
+    }
+  }
+}
+
+// Function to run automatic status updates (call this regularly)
+export const runAutomaticStatusUpdates = () => {
+  try {
+    const isNewResult = contactOperations.updateIsNewStatus()
+    const isActiveResult = contactOperations.updateIsActiveStatus()
+    const inactiveResult = contactOperations.updateInactiveContacts()
+    
+    return {
+      success: true,
+      isNewUpdated: isNewResult.changes,
+      isActiveUpdated: isActiveResult.changes,
+      inactiveUpdated: inactiveResult.changes
+    }
+  } catch (error) {
+    console.error('Automatic status updates failed:', error)
+    return {
+      success: false,
+      error: error
+    }
   }
 }
 

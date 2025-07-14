@@ -143,7 +143,8 @@ export default function ContactActivityTimeline({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-sm font-medium text-slate-700">
-                    {activity.platform}
+                    {activity.person_name} 
+                    <span className="text-slate-500 font-normal">({activity.platform})</span>
                   </span>
                   {getTemperatureBadge(activity.temperature)}
                   <span className="text-xs text-slate-500">

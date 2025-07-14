@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { contactOperations } from '@/lib/database'
+import { contactOperations, runAutomaticStatusUpdates } from '@/lib/database'
 import Database from 'better-sqlite3'
 import path from 'path'
 
@@ -46,20 +46,205 @@ function getContactsWithMetrics(contacts: Record<string, unknown>[]) {
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const status = searchParams.get('status') as 'new' | 'active' | 'converted' | 'dormant' | null
+    // Run automatic status updates before fetching contacts
+    runAutomaticStatusUpdates()
     
-    let contacts
-    if (status) {
-      contacts = contactOperations.getByStatus(status)
-    } else {
-      contacts = contactOperations.getAll()
+    const { searchParams } = new URL(request.url)
+    
+    // Extract all filter parameters
+    const status = searchParams.get('status') as 'converted' | 'inactive' | null
+    const search = searchParams.get('search')
+    const searchType = searchParams.get('searchType') || 'all'
+    const relationshipStatus = searchParams.get('relationshipStatus')?.split(',').filter(Boolean)
+    const relationshipType = searchParams.get('relationshipType')?.split(',').filter(Boolean)
+    const platforms = searchParams.get('platforms')?.split(',').filter(Boolean)
+    const temperature = searchParams.get('temperature')?.split(',').filter(Boolean)
+    const dateRange = searchParams.get('dateRange')
+    const hasTwoWay = searchParams.get('hasTwoWay')
+    const hasPhone = searchParams.get('hasPhone')
+    const isNew = searchParams.get('isNew') // 'true', 'false', or null
+    const isActive = searchParams.get('isActive') // 'true', 'false', or null
+    const sort = searchParams.get('sort') || 'updated_at'
+    const order = searchParams.get('order') || 'desc'
+    
+    // Extract pagination parameters
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '15')
+    
+    // Get base contacts
+    const contacts = status ? contactOperations.getByStatus(status) : contactOperations.getAll()
+    
+    // Add auto-calculated metrics first
+    let enhancedContacts = getContactsWithMetrics(contacts as unknown as Record<string, unknown>[])
+    
+    // Apply search filter
+    if (search) {
+      const searchLower = search.toLowerCase()
+      enhancedContacts = enhancedContacts.filter(contact => {
+        const c = contact as Record<string, unknown>
+        switch (searchType) {
+          case 'name':
+            return (c.name as string)?.toLowerCase().includes(searchLower)
+          case 'phone':
+            return c.phone && (c.phone as string).toLowerCase().includes(searchLower)
+          case 'notes':
+            return c.notes && (c.notes as string).toLowerCase().includes(searchLower)
+          case 'platforms':
+            return c.platforms && (c.platforms as string[]).some((p: string) => p.toLowerCase().includes(searchLower))
+          case 'all':
+          default:
+            return (c.name as string)?.toLowerCase().includes(searchLower) ||
+              (c.phone && (c.phone as string).toLowerCase().includes(searchLower)) ||
+              (c.notes && (c.notes as string).toLowerCase().includes(searchLower)) ||
+              (c.platforms && (c.platforms as string[]).some((p: string) => p.toLowerCase().includes(searchLower)))
+        }
+      })
     }
     
-    // Add auto-calculated metrics
-    const enhancedContacts = getContactsWithMetrics(contacts as unknown as Record<string, unknown>[])
+    // Apply relationship status filter (in addition to the status parameter)
+    if (relationshipStatus && relationshipStatus.length > 0) {
+      enhancedContacts = enhancedContacts.filter(contact => 
+        relationshipStatus.includes((contact as Record<string, unknown>).relationship_status as string || 'new')
+      )
+    }
     
-    return NextResponse.json(enhancedContacts)
+    // Apply relationship type filter
+    if (relationshipType && relationshipType.length > 0) {
+      enhancedContacts = enhancedContacts.filter(contact => 
+        (contact as Record<string, unknown>).relationship_type && relationshipType.includes((contact as Record<string, unknown>).relationship_type as string)
+      )
+    }
+    
+    // Apply platform filter
+    if (platforms && platforms.length > 0) {
+      enhancedContacts = enhancedContacts.filter(contact => 
+        (contact as Record<string, unknown>).platforms && ((contact as Record<string, unknown>).platforms as string[]).some((p: string) => 
+          platforms.includes(p.toLowerCase())
+        )
+      )
+    }
+    
+    // Apply temperature filter
+    if (temperature && temperature.length > 0) {
+      enhancedContacts = enhancedContacts.filter(contact => 
+        contact.latest_temperature && temperature.includes(contact.latest_temperature)
+      )
+    }
+    
+    // Apply date range filter
+    if (dateRange && dateRange !== 'all') {
+      const now = new Date()
+      let cutoffDate: Date
+      
+      switch (dateRange) {
+        case 'today':
+          cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+          break
+        case 'week':
+          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          break
+        case 'month':
+          cutoffDate = new Date(now.getFullYear(), now.getMonth(), 1)
+          break
+        default:
+          cutoffDate = new Date(0) // All time
+      }
+      
+      enhancedContacts = enhancedContacts.filter(contact => {
+        if (!(contact as Record<string, unknown>).last_contact_date) return false
+        const contactDate = new Date((contact as Record<string, unknown>).last_contact_date as string)
+        return contactDate >= cutoffDate
+      })
+    }
+    
+    // Apply two-way communication filter
+    if (hasTwoWay === 'yes') {
+      enhancedContacts = enhancedContacts.filter(contact => contact.has_two_way_communication)
+    } else if (hasTwoWay === 'no') {
+      enhancedContacts = enhancedContacts.filter(contact => !contact.has_two_way_communication)
+    }
+    
+    // Apply phone filter
+    if (hasPhone === 'yes') {
+      enhancedContacts = enhancedContacts.filter(contact => (contact as Record<string, unknown>).phone)
+    } else if (hasPhone === 'no') {
+      enhancedContacts = enhancedContacts.filter(contact => !(contact as Record<string, unknown>).phone)
+    }
+    
+    // Apply is_new filter
+    if (isNew === 'true') {
+      enhancedContacts = enhancedContacts.filter(contact => (contact as Record<string, unknown>).is_new)
+    } else if (isNew === 'false') {
+      enhancedContacts = enhancedContacts.filter(contact => !(contact as Record<string, unknown>).is_new)
+    }
+    
+    // Apply is_active filter
+    if (isActive === 'true') {
+      enhancedContacts = enhancedContacts.filter(contact => (contact as Record<string, unknown>).is_active)
+    } else if (isActive === 'false') {
+      enhancedContacts = enhancedContacts.filter(contact => !(contact as Record<string, unknown>).is_active)
+    }
+    
+    // Apply sorting
+    enhancedContacts.sort((a, b) => {
+      let aValue: string | number
+      let bValue: string | number
+      
+      switch (sort) {
+        case 'name':
+          aValue = (a as Record<string, unknown>).name as string || ''
+          bValue = (b as Record<string, unknown>).name as string || ''
+          break
+        case 'last_contact_date':
+          aValue = new Date((a as Record<string, unknown>).last_contact_date as string || 0).getTime()
+          bValue = new Date((b as Record<string, unknown>).last_contact_date as string || 0).getTime()
+          break
+        case 'auto_contact_attempts':
+          aValue = a.auto_contact_attempts || 0
+          bValue = b.auto_contact_attempts || 0
+          break
+        case 'created_at':
+          aValue = new Date((a as Record<string, unknown>).created_at as string || 0).getTime()
+          bValue = new Date((b as Record<string, unknown>).created_at as string || 0).getTime()
+          break
+        case 'latest_temperature':
+          // Sort by temperature priority: hot > warm > cold
+          const tempPriority = { hot: 3, warm: 2, cold: 1 }
+          aValue = tempPriority[a.latest_temperature as keyof typeof tempPriority] || 0
+          bValue = tempPriority[b.latest_temperature as keyof typeof tempPriority] || 0
+          break
+        case 'updated_at':
+        default:
+          aValue = new Date((a as Record<string, unknown>).updated_at as string || (a as Record<string, unknown>).created_at as string || 0).getTime()
+          bValue = new Date((b as Record<string, unknown>).updated_at as string || (b as Record<string, unknown>).created_at as string || 0).getTime()
+          break
+      }
+      
+      if (order === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0
+      }
+    })
+    
+    // Apply pagination
+    const totalContacts = enhancedContacts.length
+    const startIndex = (page - 1) * limit
+    const endIndex = startIndex + limit
+    const paginatedContacts = enhancedContacts.slice(startIndex, endIndex)
+    const hasMore = endIndex < totalContacts
+    
+    // Return paginated response with metadata
+    return NextResponse.json({
+      contacts: paginatedContacts,
+      pagination: {
+        page,
+        limit,
+        total: totalContacts,
+        hasMore,
+        totalPages: Math.ceil(totalContacts / limit)
+      }
+    })
   } catch (error) {
     console.error('Failed to fetch contacts:', error)
     return NextResponse.json({ error: 'Failed to fetch contacts' }, { status: 500 })

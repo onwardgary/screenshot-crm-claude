@@ -26,16 +26,29 @@ export interface ContactDetectionResult {
 export async function fetchExistingContacts(): Promise<ExistingContact[]> {
   try {
     console.log('📡 Fetching existing contacts from /api/contacts...')
-    const response = await fetch('/api/contacts')
+    
+    // Fetch all contacts by using a large limit for contact detection
+    const response = await fetch('/api/contacts?limit=1000')
     console.log('📡 Response status:', response.status, response.statusText)
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
     
-    const contacts = await response.json()
-    console.log('🔍 Fetched existing contacts:', contacts.length)
-    return contacts
+    const data = await response.json()
+    
+    // Handle new paginated response format
+    if (data && data.contacts && Array.isArray(data.contacts)) {
+      console.log('🔍 Fetched existing contacts:', data.contacts.length)
+      return data.contacts
+    } else if (Array.isArray(data)) {
+      // Fallback for old response format
+      console.log('🔍 Fetched existing contacts (legacy format):', data.length)
+      return data
+    } else {
+      console.error('🚨 Unexpected API response format:', data)
+      return []
+    }
   } catch (error) {
     console.error('❌ Failed to fetch existing contacts:', error)
     return []
