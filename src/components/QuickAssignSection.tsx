@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
+import { useContactSearch } from '@/hooks/useContactSearch'
+import { getPlatformIcon, getTemperatureBadge } from '@/lib/platformUtils'
 import { 
   Search, 
   Users, 
@@ -14,15 +15,6 @@ import {
   Link,
   Loader2 
 } from 'lucide-react'
-
-interface Contact {
-  id: number
-  name: string
-  phone?: string
-  platforms?: string[]
-  auto_contact_attempts?: number
-  latest_temperature?: 'hot' | 'warm' | 'cold'
-}
 
 interface QuickAssignSectionProps {
   selectedActivityIds: number[]
@@ -35,47 +27,15 @@ export default function QuickAssignSection({
   onAssignmentSuccess,
   onCreateNew 
 }: QuickAssignSectionProps) {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [searching, setSearching] = useState(false)
   const [assigning, setAssigning] = useState<number | null>(null)
   const { toast } = useToast()
-
-  // Debounced search for contacts
-  const searchContacts = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setContacts([])
-      return
-    }
-
-    setSearching(true)
-    try {
-      const response = await fetch(`/api/contacts?search=${encodeURIComponent(query)}&quickSearch=true&limit=10`)
-      
-      if (!response.ok) {
-        throw new Error('Failed to search contacts')
-      }
-      
-      const data = await response.json()
-      // Handle both paginated and non-paginated responses
-      const contactList = data.contacts || data
-      setContacts(Array.isArray(contactList) ? contactList : [])
-    } catch (error) {
-      console.error('Contact search error:', error)
-      setContacts([])
-    } finally {
-      setSearching(false)
-    }
-  }, [])
-
-  // Debounce search input
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      searchContacts(searchQuery)
-    }, 300)
-
-    return () => clearTimeout(timer)
-  }, [searchQuery, searchContacts])
+  
+  // Use shared contact search hook
+  const { contacts, searching, searchQuery, setSearchQuery, clearSearch } = useContactSearch({
+    fuzzy: false, // Legacy behavior without fuzzy search
+    limit: 10,
+    debounceMs: 300
+  })
 
   const handleAssignToContact = async (contactId: number, contactName: string) => {
     setAssigning(contactId)
@@ -101,8 +61,7 @@ export default function QuickAssignSection({
       })
 
       // Reset state and notify parent
-      setSearchQuery('')
-      setContacts([])
+      clearSearch()
       onAssignmentSuccess()
     } catch (error) {
       console.error('Assignment error:', error)
@@ -116,43 +75,6 @@ export default function QuickAssignSection({
     }
   }
 
-  const getPlatformIcon = (platform: string, size = 12) => {
-    const iconMap: Record<string, string> = {
-      'whatsapp': '/icons/whatsapp.svg',
-      'instagram': '/icons/instagram.svg',
-      'messenger': '/icons/messenger.svg',
-      'telegram': '/icons/telegram.svg',
-      'tiktok': '/icons/tiktok.svg',
-      'line': '/icons/line.svg',
-      'linkedin': '/icons/linkedin.svg',
-      'wechat': '/icons/wechat.svg'
-    }
-    
-    const iconPath = iconMap[platform.toLowerCase()] || '/icons/phone.svg'
-    
-    return (
-      <img 
-        src={iconPath} 
-        alt={`${platform} icon`}
-        width={size} 
-        height={size}
-        className="inline-block"
-      />
-    )
-  }
-
-  const getTemperatureBadge = (temperature?: string) => {
-    switch (temperature) {
-      case 'hot':
-        return <Badge className="bg-red-100 text-red-800 text-xs">🔥</Badge>
-      case 'warm':
-        return <Badge className="bg-orange-100 text-orange-800 text-xs">🌡️</Badge>
-      case 'cold':
-        return <Badge className="bg-blue-100 text-blue-800 text-xs">❄️</Badge>
-      default:
-        return <Badge className="bg-orange-100 text-orange-800 text-xs">🌡️</Badge>
-    }
-  }
 
   if (selectedActivityIds.length === 0) {
     return null

@@ -110,12 +110,19 @@ export default function ConvertContactsModal({
         throw new Error('Invalid assignment data')
       }
 
-      // Link activity to contact
-      await fetch(`/api/activities/${activityId}`, {
-        method: 'PUT',
+      // Link activity to contact using bulk API
+      const linkResponse = await fetch('/api/activities/bulk-assign', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact_id: contactId })
+        body: JSON.stringify({
+          activityIds: [activityId],
+          contactId
+        })
       })
+
+      if (!linkResponse.ok) {
+        throw new Error('Failed to link activity to contact')
+      }
 
       // Update status to success
       setAssignmentItems(prev => prev.map(item => 

@@ -12,6 +12,7 @@ import ContactHistoryTimeline from '@/components/ContactHistoryTimeline'
 import ScreenshotModal from '@/components/ScreenshotModal'
 import LoadMoreButton from '@/components/LoadMoreButton'
 import ContactCardSkeleton from '@/components/ContactCardSkeleton'
+import { getPlatformIcon } from '@/lib/platformUtils'
 import { 
   Phone, 
   Calendar,
@@ -412,30 +413,6 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
     }
   }
 
-  const getPlatformIcon = (platform: string, size = 14) => {
-    const iconMap: Record<string, string> = {
-      'whatsapp': '/icons/whatsapp.svg',
-      'instagram': '/icons/instagram.svg',
-      'messenger': '/icons/messenger.svg',
-      'telegram': '/icons/telegram.svg',
-      'tiktok': '/icons/tiktok.svg',
-      'line': '/icons/line.svg',
-      'linkedin': '/icons/linkedin.svg',
-      'wechat': '/icons/wechat.svg'
-    }
-    
-    const iconPath = iconMap[platform.toLowerCase()] || '/icons/phone.svg'
-    
-    return (
-      <img 
-        src={iconPath} 
-        alt={`${platform} icon`}
-        width={size} 
-        height={size}
-        className="inline-block"
-      />
-    )
-  }
 
   const getPlatformIcons = (platforms?: string[]) => {
     if (!platforms || platforms.length === 0) return null

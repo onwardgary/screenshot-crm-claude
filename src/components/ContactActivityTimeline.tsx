@@ -2,6 +2,7 @@
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { getPlatformIcon, getTemperatureBadgeWithText } from '@/lib/platformUtils'
 import { 
   Image,
   Clock,
@@ -37,43 +38,6 @@ export default function ContactActivityTimeline({
   loading = false, 
   onViewScreenshot 
 }: ContactActivityTimelineProps) {
-  const getPlatformIcon = (platform: string, size = 14) => {
-    const iconMap: Record<string, string> = {
-      'whatsapp': '/icons/whatsapp.svg',
-      'instagram': '/icons/instagram.svg',
-      'messenger': '/icons/messenger.svg',
-      'telegram': '/icons/telegram.svg',
-      'tiktok': '/icons/tiktok.svg',
-      'line': '/icons/line.svg',
-      'linkedin': '/icons/linkedin.svg',
-      'wechat': '/icons/wechat.svg'
-    }
-    
-    const iconPath = iconMap[platform.toLowerCase()] || '/icons/phone.svg'
-    
-    return (
-      <img 
-        src={iconPath} 
-        alt={`${platform} icon`}
-        width={size} 
-        height={size}
-        className="inline-block"
-      />
-    )
-  }
-
-  const getTemperatureBadge = (temperature?: string) => {
-    switch (temperature) {
-      case 'hot':
-        return <Badge className="bg-red-100 text-red-800 text-xs">🔥 Hot</Badge>
-      case 'warm':
-        return <Badge className="bg-orange-100 text-orange-800 text-xs">🌡️ Warm</Badge>
-      case 'cold':
-        return <Badge className="bg-blue-100 text-blue-800 text-xs">❄️ Cold</Badge>
-      default:
-        return <Badge className="bg-orange-100 text-orange-800 text-xs">🌡️ Warm</Badge>
-    }
-  }
 
   const formatRelativeTime = (dateString: string) => {
     try {
@@ -146,7 +110,7 @@ export default function ContactActivityTimeline({
                     {activity.person_name} 
                     <span className="text-slate-500 font-normal">({activity.platform})</span>
                   </span>
-                  {getTemperatureBadge(activity.temperature)}
+                  {getTemperatureBadgeWithText(activity.temperature)}
                   <span className="text-xs text-slate-500">
                     {formatRelativeTime(activity.created_at)}
                   </span>

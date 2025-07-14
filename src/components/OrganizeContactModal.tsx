@@ -3,15 +3,14 @@
 import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { UserPlus, Link, Phone, MessageCircle, AlertCircle } from 'lucide-react'
+import { UserPlus, Link, MessageCircle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { fetchExistingContacts, detectExistingContactForActivities, type ContactDetectionResult } from '@/lib/contactDetection'
+import ContactDetectionBanner from './ContactDetectionBanner'
+import ContactForm, { type ContactFormData } from './ContactForm'
+import ContactPicker from './ContactPicker'
 
 interface Activity {
   id: number
@@ -49,9 +48,11 @@ export default function OrganizeContactModal({
   const { toast } = useToast()
 
   // Form states for create mode
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [notes, setNotes] = useState('')
+  const [contactFormData, setContactFormData] = useState<ContactFormData>({
+    name: '',
+    phone: '',
+    notes: ''
+  })
 
   // Selected contact for link mode
   const [selectedContactId, setSelectedContactId] = useState<number | null>(null)
@@ -65,13 +66,13 @@ export default function OrganizeContactModal({
   const initializeModal = async () => {
     // Auto-fill from activities
     const firstActivity = activities[0]
-    setName(firstActivity.person_name)
-    
-    // Find first phone number
     const phoneActivity = activities.find(a => a.phone)
-    if (phoneActivity?.phone) {
-      setPhone(phoneActivity.phone)
-    }
+    
+    setContactFormData({
+      name: firstActivity.person_name,
+      phone: phoneActivity?.phone || '',
+      notes: ''
+    })
     
     // Fetch existing contacts for intelligent detection
     const existingContactsData = await fetchExistingContacts()
@@ -101,22 +102,22 @@ export default function OrganizeContactModal({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name,
-            phone,
+            name: contactFormData.name,
+            phone: contactFormData.phone,
             platforms,
-            notes
+            notes: contactFormData.notes
           })
         })
         
         if (!contactResponse.ok) throw new Error('Failed to create contact')
         const { id: contactId } = await contactResponse.json()
         
-        // Link activities to contact
-        await linkActivitiesToContact(contactId)
+        // Link activities to contact using bulk API
+        const linkResult = await linkActivitiesToContact(contactId)
         
         toast({
           title: "Contact created successfully",
-          description: `${activities.length} activities organized under ${name}`
+          description: `${linkResult.successCount} of ${activities.length} activities organized under ${contactFormData.name}`
         })
       } else {
         // Link to existing contact
@@ -129,12 +130,12 @@ export default function OrganizeContactModal({
           return
         }
         
-        await linkActivitiesToContact(selectedContactId)
+        const linkResult = await linkActivitiesToContact(selectedContactId)
         
         const contact = contacts.find(c => c.id === selectedContactId)
         toast({
           title: "Activities assigned successfully",
-          description: `${activities.length} activities assigned to ${contact?.name}`
+          description: `${linkResult.successCount} of ${activities.length} activities assigned to ${contact?.name}`
         })
       }
       
@@ -153,16 +154,30 @@ export default function OrganizeContactModal({
   }
 
   const linkActivitiesToContact = async (contactId: number) => {
-    // Update each activity with the contact_id
-    const promises = activities.map(activity =>
-      fetch(`/api/activities/${activity.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact_id: contactId })
-      })
-    )
+    // Use bulk assignment API for better performance and error handling
+    const activityIds = activities.map(activity => activity.id)
     
-    await Promise.all(promises)
+    const response = await fetch('/api/activities/bulk-assign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        activityIds,
+        contactId
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error('Failed to assign activities to contact')
+    }
+    
+    const result = await response.json()
+    
+    // Log any partial failures
+    if (result.errors && result.errors.length > 0) {
+      console.warn('Some activities failed to assign:', result.errors)
+    }
+    
+    return result
   }
 
   // Group activities by platform for preview
@@ -186,43 +201,8 @@ export default function OrganizeContactModal({
         </DialogHeader>
 
         {/* Intelligent Detection Banner */}
-        {detectionResult?.existingContact && (
-          <div className={`p-4 rounded-lg border ${
-            detectionResult.confidence === 'high' 
-              ? 'bg-green-50 border-green-200 text-green-800'
-              : 'bg-yellow-50 border-yellow-200 text-yellow-800'
-          }`}>
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-semibold mb-1">
-                  {detectionResult.confidence === 'high' ? 'Existing Contact Found!' : 'Possible Match Found'}
-                </p>
-                <p className="text-sm">
-                  Found existing contact: <strong>{detectionResult.existingContact.name}</strong>
-                  {detectionResult.existingContact.phone && ` (${detectionResult.existingContact.phone})`}
-                </p>
-                <p className="text-xs mt-1 opacity-75">
-                  {detectionResult.reason} • {detectionResult.confidence} confidence
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+        <ContactDetectionBanner detectionResult={detectionResult} />
 
-        {detectionResult && !detectionResult.existingContact && (
-          <div className="p-4 rounded-lg border bg-blue-50 border-blue-200 text-blue-800">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-semibold mb-1">No Existing Contact Found</p>
-                <p className="text-sm">
-                  No similar contacts detected. A new contact will be created.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         <Tabs value={mode} onValueChange={(v) => setMode(v as 'create' | 'link')}>
           <TabsList className="grid w-full grid-cols-2">
@@ -237,79 +217,20 @@ export default function OrganizeContactModal({
           </TabsList>
 
           <TabsContent value="create" className="space-y-4">
-            <div className="grid gap-4">
-              <div>
-                <Label htmlFor="name">Contact Name</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter contact name"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Enter phone number"
-                />
-              </div>
-
-
-              <div>
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Add any notes about this contact..."
-                  rows={3}
-                />
-              </div>
-            </div>
+            <ContactForm 
+              data={contactFormData} 
+              onChange={setContactFormData}
+              disabled={loading}
+            />
           </TabsContent>
 
           <TabsContent value="link" className="space-y-4">
-            <div>
-              <Label>Select Existing Contact</Label>
-              <ScrollArea className="h-[200px] border rounded-md p-2 mt-2">
-                <div className="space-y-2">
-                  {contacts.map((contact) => (
-                    <div
-                      key={contact.id}
-                      className={`p-3 rounded-md border cursor-pointer transition-colors ${
-                        selectedContactId === contact.id
-                          ? 'border-primary bg-primary/5'
-                          : 'hover:bg-gray-50'
-                      }`}
-                      onClick={() => setSelectedContactId(contact.id)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium">{contact.name}</p>
-                          {contact.phone && (
-                            <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                              <Phone className="w-3 h-3" />
-                              {contact.phone}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex gap-1">
-                          {contact.platforms.map(platform => (
-                            <Badge key={platform} variant="secondary" className="text-xs">
-                              {platform}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
+            <ContactPicker
+              contacts={contacts}
+              selectedContactId={selectedContactId}
+              onSelectContact={setSelectedContactId}
+              height="200px"
+            />
           </TabsContent>
         </Tabs>
 
@@ -335,7 +256,7 @@ export default function OrganizeContactModal({
           <Button variant="outline" onClick={onClose} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={loading || (mode === 'create' && !name)}>
+          <Button onClick={handleSubmit} disabled={loading || (mode === 'create' && !contactFormData.name)}>
             {loading ? 'Assigning...' : mode === 'create' ? 'Create & Assign' : 'Assign Activities'}
           </Button>
         </DialogFooter>

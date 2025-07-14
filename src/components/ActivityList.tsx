@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { getPlatformIcon, getTemperatureBadgeWithText } from '@/lib/platformUtils'
 import { 
   Phone, 
   Image,
@@ -77,43 +78,7 @@ export default function ActivityList({ organized = false, activities, loading = 
     }
   }
 
-  const getPlatformIcon = (platform: string, size = 16) => {
-    const iconMap: Record<string, string> = {
-      'whatsapp': '/icons/whatsapp.svg',
-      'instagram': '/icons/instagram.svg',
-      'messenger': '/icons/messenger.svg',
-      'telegram': '/icons/telegram.svg',
-      'tiktok': '/icons/tiktok.svg',
-      'line': '/icons/line.svg',
-      'linkedin': '/icons/linkedin.svg',
-      'wechat': '/icons/wechat.svg'
-    }
-    
-    const iconPath = iconMap[platform.toLowerCase()] || '/icons/phone.svg'
-    
-    return (
-      <img 
-        src={iconPath} 
-        alt={`${platform} icon`}
-        width={size} 
-        height={size}
-        className="inline-block"
-      />
-    )
-  }
 
-  const getTemperatureBadge = (temperature?: string) => {
-    switch (temperature) {
-      case 'hot':
-        return <Badge className="bg-red-100 text-red-800">🔥 Hot</Badge>
-      case 'warm':
-        return <Badge className="bg-orange-100 text-orange-800">🌡️ Warm</Badge>
-      case 'cold':
-        return <Badge className="bg-blue-100 text-blue-800">❄️ Cold</Badge>
-      default:
-        return <Badge className="bg-orange-100 text-orange-800">🌡️ Warm</Badge>
-    }
-  }
 
   if (loading) {
     return (
@@ -204,7 +169,7 @@ export default function ActivityList({ organized = false, activities, loading = 
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  {getTemperatureBadge(activity.temperature)}
+                  {getTemperatureBadgeWithText(activity.temperature)}
                   {activity.is_group_chat && (
                     <Badge variant="secondary" className="bg-orange-100 text-orange-800">
                       <Users className="h-3 w-3 mr-1" />

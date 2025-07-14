@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Navbar from '@/components/Navbar'
 import ActivityStreakCalendar from '@/components/ActivityStreakCalendar'
+import { getPlatformIcon } from '@/lib/platformUtils'
 import { 
   Users,
   Camera,
@@ -44,30 +45,6 @@ export default function HomePage() {
   const [timeframe, setTimeframe] = useState(7)
   const [isClient, setIsClient] = useState(false)
 
-  const getPlatformIcon = (platform: string, size = 16) => {
-    const iconMap: Record<string, string> = {
-      'whatsapp': '/icons/whatsapp.svg',
-      'instagram': '/icons/instagram.svg',
-      'messenger': '/icons/messenger.svg',
-      'telegram': '/icons/telegram.svg',
-      'tiktok': '/icons/tiktok.svg',
-      'line': '/icons/line.svg',
-      'linkedin': '/icons/linkedin.svg',
-      'wechat': '/icons/wechat.svg'
-    }
-    
-    const iconPath = iconMap[platform.toLowerCase()] || '/icons/phone.svg'
-    
-    return (
-      <img 
-        src={iconPath} 
-        alt={`${platform} icon`}
-        width={size} 
-        height={size}
-        className="inline-block"
-      />
-    )
-  }
 
   useEffect(() => {
     setIsClient(true)

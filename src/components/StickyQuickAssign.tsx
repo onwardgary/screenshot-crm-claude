@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
+import { useContactSearch } from '@/hooks/useContactSearch'
+import { getPlatformIcon, getTemperatureBadge } from '@/lib/platformUtils'
 import { 
   Search, 
   Users, 
@@ -17,15 +18,6 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react'
-
-interface Contact {
-  id: number
-  name: string
-  phone?: string
-  platforms?: string[]
-  auto_contact_attempts?: number
-  latest_temperature?: 'hot' | 'warm' | 'cold'
-}
 
 interface StickyQuickAssignProps {
   selectedActivityIds: number[]
@@ -40,50 +32,18 @@ export default function StickyQuickAssign({
   onCreateNew,
   onClearSelection
 }: StickyQuickAssignProps) {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [searching, setSearching] = useState(false)
   const [assigning, setAssigning] = useState<number | null>(null)
   const [isExpanded, setIsExpanded] = useState(false)
   const [isSearchFocused, setIsSearchFocused] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
-
-  // Enhanced fuzzy search for contacts
-  const searchContacts = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setContacts([])
-      return
-    }
-
-    setSearching(true)
-    try {
-      // Use enhanced search with fuzzy matching
-      const response = await fetch(`/api/contacts?search=${encodeURIComponent(query)}&quickSearch=true&fuzzy=true&limit=8`)
-      
-      if (!response.ok) {
-        throw new Error('Failed to search contacts')
-      }
-      
-      const data = await response.json()
-      const contactList = data.contacts || data
-      setContacts(Array.isArray(contactList) ? contactList : [])
-    } catch (error) {
-      console.error('Contact search error:', error)
-      setContacts([])
-    } finally {
-      setSearching(false)
-    }
-  }, [])
-
-  // Debounce search with faster response for better UX
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      searchContacts(searchQuery)
-    }, 200) // Reduced from 300ms for snappier feel
-
-    return () => clearTimeout(timer)
-  }, [searchQuery, searchContacts])
+  
+  // Use shared contact search hook
+  const { contacts, searching, searchQuery, setSearchQuery, clearSearch } = useContactSearch({
+    fuzzy: true,
+    limit: 8,
+    debounceMs: 200
+  })
 
   // Auto-expand when search is focused or has results
   useEffect(() => {
@@ -116,8 +76,7 @@ export default function StickyQuickAssign({
       })
 
       // Reset state and notify parent
-      setSearchQuery('')
-      setContacts([])
+      clearSearch()
       setIsExpanded(false)
       onAssignmentSuccess()
     } catch (error) {
@@ -134,50 +93,12 @@ export default function StickyQuickAssign({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      setSearchQuery('')
-      setContacts([])
+      clearSearch()
       setIsExpanded(false)
       searchInputRef.current?.blur()
     }
   }
 
-  const getPlatformIcon = (platform: string, size = 12) => {
-    const iconMap: Record<string, string> = {
-      'whatsapp': '/icons/whatsapp.svg',
-      'instagram': '/icons/instagram.svg',
-      'messenger': '/icons/messenger.svg',
-      'telegram': '/icons/telegram.svg',
-      'tiktok': '/icons/tiktok.svg',
-      'line': '/icons/line.svg',
-      'linkedin': '/icons/linkedin.svg',
-      'wechat': '/icons/wechat.svg'
-    }
-    
-    const iconPath = iconMap[platform.toLowerCase()] || '/icons/phone.svg'
-    
-    return (
-      <img 
-        src={iconPath} 
-        alt={`${platform} icon`}
-        width={size} 
-        height={size}
-        className="inline-block"
-      />
-    )
-  }
-
-  const getTemperatureBadge = (temperature?: string) => {
-    switch (temperature) {
-      case 'hot':
-        return <Badge className="bg-red-100 text-red-800 text-xs px-1 py-0">🔥</Badge>
-      case 'warm':
-        return <Badge className="bg-orange-100 text-orange-800 text-xs px-1 py-0">🌡️</Badge>
-      case 'cold':
-        return <Badge className="bg-blue-100 text-blue-800 text-xs px-1 py-0">❄️</Badge>
-      default:
-        return <Badge className="bg-orange-100 text-orange-800 text-xs px-1 py-0">🌡️</Badge>
-    }
-  }
 
   if (selectedActivityIds.length === 0) {
     return null
@@ -268,7 +189,7 @@ export default function StickyQuickAssign({
                 {contacts.length === 0 && !searching ? (
                   <div className="text-center py-6">
                     <Users className="h-8 w-8 mx-auto mb-2 text-slate-400" />
-                    <p className="text-sm text-slate-500 mb-2">No contacts found for "{searchQuery}"</p>
+                    <p className="text-sm text-slate-500 mb-2">No contacts found for &ldquo;{searchQuery}&rdquo;</p>
                     <p className="text-xs text-slate-400">Try a shorter search term or create a new contact</p>
                   </div>
                 ) : (

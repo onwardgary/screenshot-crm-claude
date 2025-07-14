@@ -2,14 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { UserPlus, Link, Phone, AlertCircle, CheckCircle2, XCircle } from 'lucide-react'
+import { UserPlus, Link, CheckCircle2, XCircle } from 'lucide-react'
 import { detectExistingContactForActivities, type ExistingContact, type ContactDetectionResult } from '@/lib/contactDetection'
+import ContactDetectionBanner from './ContactDetectionBanner'
+import ContactForm, { type ContactFormData } from './ContactForm'
+import ContactPicker from './ContactPicker'
+import { getPlatformIcon, getTemperatureEmoji } from '@/lib/platformUtils'
 
 interface Activity {
   id: number
@@ -49,9 +48,11 @@ export default function ActivityAssignmentCard({
   const [expanded, setExpanded] = useState(false)
   
   // Form states for create mode
-  const [name, setName] = useState(activity.person_name)
-  const [phone, setPhone] = useState(activity.phone || '')
-  const [notes, setNotes] = useState('')
+  const [contactFormData, setContactFormData] = useState<ContactFormData>({
+    name: activity.person_name,
+    phone: activity.phone || '',
+    notes: ''
+  })
 
   // Selected contact for link mode
   const [selectedContactId, setSelectedContactId] = useState<number | null>(null)
@@ -74,7 +75,11 @@ export default function ActivityAssignmentCard({
     if (mode === 'create') {
       await onAssign(activity.id, {
         mode: 'create',
-        contactData: { name, phone, notes }
+        contactData: { 
+          name: contactFormData.name, 
+          phone: contactFormData.phone, 
+          notes: contactFormData.notes 
+        }
       })
     } else {
       if (selectedContactId) {
@@ -86,39 +91,6 @@ export default function ActivityAssignmentCard({
     }
   }
 
-  const getPlatformIcon = (platform: string, size = 16) => {
-    const iconMap: Record<string, string> = {
-      'whatsapp': '/icons/whatsapp.svg',
-      'instagram': '/icons/instagram.svg',
-      'messenger': '/icons/messenger.svg',
-      'telegram': '/icons/telegram.svg',
-      'tiktok': '/icons/tiktok.svg',
-      'line': '/icons/line.svg',
-      'linkedin': '/icons/linkedin.svg',
-      'wechat': '/icons/wechat.svg'
-    }
-    
-    const iconPath = iconMap[platform.toLowerCase()] || '/icons/phone.svg'
-    
-    return (
-      <img 
-        src={iconPath} 
-        alt={`${platform} icon`}
-        width={size} 
-        height={size}
-        className="inline-block"
-      />
-    )
-  }
-
-  const getTemperatureEmoji = (temperature?: string) => {
-    switch (temperature) {
-      case 'hot': return '🔥'
-      case 'warm': return '🌡️'
-      case 'cold': return '❄️'
-      default: return '🌡️'
-    }
-  }
 
   return (
     <div className={`border rounded-lg p-4 ${
@@ -177,41 +149,8 @@ export default function ActivityAssignmentCard({
       {expanded && status === 'pending' && (
         <div className="space-y-4">
           {/* Detection Banner */}
-          {detectionResult?.existingContact && (
-            <div className={`p-3 rounded-lg border ${
-              detectionResult.confidence === 'high' 
-                ? 'bg-green-50 border-green-200 text-green-800'
-                : 'bg-yellow-50 border-yellow-200 text-yellow-800'
-            }`}>
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-semibold text-sm mb-1">
-                    {detectionResult.confidence === 'high' ? 'Existing Contact Found!' : 'Possible Match Found'}
-                  </p>
-                  <p className="text-xs">
-                    <strong>{detectionResult.existingContact.name}</strong>
-                    {detectionResult.existingContact.phone && ` (${detectionResult.existingContact.phone})`}
-                  </p>
-                  <p className="text-xs opacity-75">
-                    {detectionResult.reason} • {detectionResult.confidence} confidence
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+          <ContactDetectionBanner detectionResult={detectionResult} />
 
-          {detectionResult && !detectionResult.existingContact && (
-            <div className="p-3 rounded-lg border bg-blue-50 border-blue-200 text-blue-800">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-semibold text-sm mb-1">No Existing Contact Found</p>
-                  <p className="text-xs">A new contact will be created.</p>
-                </div>
-              </div>
-            </div>
-          )}
 
           <Tabs value={mode} onValueChange={(v) => setMode(v as 'create' | 'link')}>
             <TabsList className="grid w-full grid-cols-2">
@@ -226,81 +165,21 @@ export default function ActivityAssignmentCard({
             </TabsList>
 
             <TabsContent value="create" className="space-y-3">
-              <div className="grid gap-3">
-                <div>
-                  <Label htmlFor={`name-${activity.id}`}>Contact Name</Label>
-                  <Input
-                    id={`name-${activity.id}`}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter contact name"
-                    className="h-8"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor={`phone-${activity.id}`}>Phone Number</Label>
-                  <Input
-                    id={`phone-${activity.id}`}
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Enter phone number"
-                    className="h-8"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor={`notes-${activity.id}`}>Notes</Label>
-                  <Textarea
-                    id={`notes-${activity.id}`}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Add any notes..."
-                    rows={2}
-                    className="resize-none"
-                  />
-                </div>
-              </div>
+              <ContactForm 
+                data={contactFormData} 
+                onChange={setContactFormData}
+                idPrefix={activity.id.toString()}
+              />
             </TabsContent>
 
             <TabsContent value="link" className="space-y-3">
-              <div>
-                <Label>Select Existing Contact</Label>
-                <ScrollArea className="h-[150px] border rounded-md p-2 mt-2">
-                  <div className="space-y-2">
-                    {existingContacts.map((contact) => (
-                      <div
-                        key={contact.id}
-                        className={`p-2 rounded-md border cursor-pointer transition-colors ${
-                          selectedContactId === contact.id
-                            ? 'border-primary bg-primary/5'
-                            : 'hover:bg-gray-50'
-                        }`}
-                        onClick={() => setSelectedContactId(contact.id)}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <p className="font-medium text-sm">{contact.name}</p>
-                            {contact.phone && (
-                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                                <Phone className="w-3 h-3" />
-                                {contact.phone}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex gap-1">
-                            {contact.phone && (
-                              <Badge variant="secondary" className="text-xs">
-                                📱 {contact.phone}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </div>
+              <ContactPicker
+                contacts={existingContacts}
+                selectedContactId={selectedContactId}
+                onSelectContact={setSelectedContactId}
+                height="150px"
+                compact={true}
+              />
             </TabsContent>
           </Tabs>
 
@@ -315,7 +194,7 @@ export default function ActivityAssignmentCard({
             <Button
               size="sm"
               onClick={handleAssign}
-              disabled={mode === 'create' && !name}
+              disabled={mode === 'create' && !contactFormData.name}
               className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700"
             >
               {mode === 'create' ? 'Create & Assign' : 'Assign Activity'}

@@ -128,6 +128,19 @@ export default function BatchAnalyzePage() {
     
     try {
       for (const activity of includedActivities) {
+        // Validate required fields
+        if (!activity.person_name || activity.person_name.trim() === '') {
+          failedCount++
+          console.error('Skipping activity with missing person_name:', activity)
+          continue
+        }
+
+        if (!activity.platform || activity.platform.trim() === '') {
+          failedCount++
+          console.error('Skipping activity with missing platform:', activity)
+          continue
+        }
+
         const response = await fetch('/api/activities', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -141,11 +154,17 @@ export default function BatchAnalyzePage() {
           savedCount++
         } else {
           failedCount++
-          console.error('Failed to save activity:', activity)
+          const errorText = await response.text()
+          console.error('Failed to save activity:', {
+            activity,
+            status: response.status,
+            statusText: response.statusText,
+            error: errorText
+          })
         }
       }
       
-      if (savedCount > 0) {
+      if (savedCount > 0 && failedCount === 0) {
         toast({
           variant: "success",
           title: "Activities Saved Successfully!",
@@ -158,13 +177,24 @@ export default function BatchAnalyzePage() {
         setTimeout(() => {
           router.push('/activities')
         }, 1500)
-      }
-      
-      if (failedCount > 0) {
+      } else if (savedCount > 0 && failedCount > 0) {
+        toast({
+          variant: "default",
+          title: "Partially Saved",
+          description: `${savedCount} activities saved, ${failedCount} failed (missing required data).`,
+        })
+        
+        sessionStorage.removeItem('batchAnalysisData')
+        
+        // Delay navigation to show the partial success
+        setTimeout(() => {
+          router.push('/activities')
+        }, 2000)
+      } else if (failedCount > 0) {
         toast({
           variant: "destructive",
-          title: "Some Activities Failed to Save",
-          description: `${failedCount} activities could not be saved. Please try again.`,
+          title: "All Activities Failed to Save",
+          description: `${failedCount} activities could not be saved due to missing required data.`,
         })
       }
       
