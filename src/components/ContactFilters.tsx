@@ -129,7 +129,7 @@ export default function ContactFilters({ onFiltersChange, totalCount, filters, s
   }
 
   const platforms = stats?.platforms ? Object.keys(stats.platforms) : []
-  const relationshipTypes = ['family', 'friend', 'stranger', 'referral', 'existing_customer']
+  const relationshipTypes = ['family', 'friend']
 
   return (
     <div className="space-y-4 mb-6">

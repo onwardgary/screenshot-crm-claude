@@ -39,13 +39,11 @@ db.exec(`
     phone TEXT,
     platforms TEXT DEFAULT '[]', -- JSON array of platforms they use
     relationship_status TEXT DEFAULT NULL, -- null=prospect, converted=customer, inactive=dormant
-    relationship_type TEXT, -- family, friend, stranger, referral, existing_customer
+    relationship_type TEXT, -- family, friend
     last_contact_date DATE,
     contact_attempts INTEGER DEFAULT 0,
     response_rate REAL DEFAULT 0,
     notes TEXT,
-    follow_up_date DATE,
-    follow_up_notes TEXT,
     is_new BOOLEAN DEFAULT 1, -- Time-based: first 7 days
     is_active BOOLEAN DEFAULT 0, -- Engagement-based: has two-way communication
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -115,13 +113,11 @@ export interface Contact {
   phone?: string
   platforms?: string[] // Array of platforms they use
   relationship_status?: 'converted' | 'inactive' | null // Business outcome: null=prospect, converted=customer, inactive=dormant
-  relationship_type?: 'family' | 'friend' | 'stranger' | 'referral' | 'existing_customer'
+  relationship_type?: 'family' | 'friend'
   last_contact_date?: string
-  contact_attempts?: number // Total engagements (activities linked to this contact)
+  contact_attempts?: number // Total activities (activities linked to this contact)
   response_rate?: number
   notes?: string
-  follow_up_date?: string
-  follow_up_notes?: string
   is_new?: boolean // Time-based: first 7 days after creation
   is_active?: boolean // Engagement-based: has two-way communication
   created_at?: string
@@ -131,7 +127,7 @@ export interface Contact {
 export interface ContactHistory {
   id?: number
   contact_id: number
-  action_type: 'customer_conversion' | 'status_change' | 'follow_up_scheduled' | 'bulk_operation' | 'created'
+  action_type: 'customer_conversion' | 'status_change' | 'bulk_operation' | 'created'
   old_value?: string
   new_value?: string
   description: string
@@ -215,8 +211,8 @@ export const contactOperations = {
   // Create new contact
   create: (contact: Omit<Contact, 'id'>) => {
     const stmt = db.prepare(`
-      INSERT INTO contacts (name, phone, platforms, relationship_status, relationship_type, last_contact_date, contact_attempts, response_rate, notes, follow_up_date, follow_up_notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO contacts (name, phone, platforms, relationship_status, relationship_type, last_contact_date, contact_attempts, response_rate, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     return stmt.run(
       contact.name,
@@ -227,9 +223,7 @@ export const contactOperations = {
       contact.last_contact_date || null,
       contact.contact_attempts || 0,
       contact.response_rate || 0,
-      contact.notes || null,
-      contact.follow_up_date || null,
-      contact.follow_up_notes || null
+      contact.notes || null
     )
   },
 
@@ -275,22 +269,6 @@ export const contactOperations = {
     return stmt.run(id)
   },
 
-  // Get contacts due for follow-up
-  getDueFollowups: () => {
-    const today = new Date().toISOString().split('T')[0]
-    const stmt = db.prepare(`
-      SELECT * FROM contacts 
-      WHERE follow_up_date IS NOT NULL 
-      AND follow_up_date <= ? 
-      AND relationship_status IN ('new', 'active')
-      ORDER BY follow_up_date ASC
-    `)
-    const rows = stmt.all(today) as Record<string, unknown>[]
-    return rows.map(row => ({
-      ...row,
-      platforms: JSON.parse((row.platforms as string) || '[]')
-    })) as Contact[]
-  },
 
   // Log contact attempt
   logContactAttempt: (id: number) => {

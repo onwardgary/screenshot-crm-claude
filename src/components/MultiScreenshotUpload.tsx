@@ -37,7 +37,7 @@ interface UploadFile {
   error?: string
 }
 
-const PLATFORMS = ['WhatsApp', 'Instagram', 'TikTok', 'Messenger', 'Telegram', 'Other'] as const
+const PLATFORMS = ['WhatsApp', 'Instagram', 'TikTok', 'Messenger', 'Telegram', 'Line', 'LinkedIn', 'WeChat', 'Other'] as const
 type Platform = typeof PLATFORMS[number]
 
 export default function MultiScreenshotUpload() {

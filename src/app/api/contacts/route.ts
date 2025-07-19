@@ -31,7 +31,7 @@ function getContactsWithMetrics(contacts: Record<string, unknown>[]) {
       
       return {
         ...contact,
-        auto_contact_attempts: activityCount.count, // Total engagements (all activities)
+        auto_contact_attempts: activityCount.count, // Total activities (all activities)
         has_two_way_communication: twoWayCount.count > 0,
         latest_temperature: latestActivity?.temperature || 'warm',
         last_contact_date: latestActivity?.created_at || contact.last_contact_date,

@@ -12,17 +12,17 @@ import ContactHistoryTimeline from '@/components/ContactHistoryTimeline'
 import ScreenshotModal from '@/components/ScreenshotModal'
 import LoadMoreButton from '@/components/LoadMoreButton'
 import ContactCardSkeleton from '@/components/ContactCardSkeleton'
-import { getPlatformIcon } from '@/lib/platformUtils'
+import ContactEditForm from '@/components/ContactEditForm'
 import { 
   Phone, 
-  Calendar,
   Users,
   ArrowLeftRight,
   ArrowRight,
   Star,
   ChevronDown,
   ChevronUp,
-  Image
+  Image,
+  Edit2
 } from 'lucide-react'
 
 interface Activity {
@@ -45,7 +45,7 @@ interface Activity {
 interface ContactHistory {
   id: number
   contact_id: number
-  action_type: 'customer_conversion' | 'status_change' | 'follow_up_scheduled' | 'bulk_operation' | 'created'
+  action_type: 'customer_conversion' | 'status_change' | 'bulk_operation' | 'created'
   old_value?: string
   new_value?: string
   description: string
@@ -58,13 +58,11 @@ interface Contact {
   phone?: string
   platforms?: string[]
   relationship_status?: 'converted' | 'inactive' | null
-  relationship_type?: 'family' | 'friend' | 'stranger' | 'referral' | 'existing_customer'
+  relationship_type?: 'family' | 'friend'
   last_contact_date?: string
   contact_attempts?: number
   response_rate?: number
   notes?: string
-  follow_up_date?: string
-  follow_up_notes?: string
   created_at: string
   updated_at?: string
   // New auto-calculated fields
@@ -81,11 +79,12 @@ interface Contact {
 interface ContactsListProps {
   statusFilter?: 'converted' | 'inactive' | null
   filters?: ContactFilterState
-  onSelectionChange?: (selectedIds: number[]) => void
+  onSelectionChange?: (selectedIds: number[], selectedContacts: Contact[]) => void
   selectedIds?: number[]
+  refreshTrigger?: number // Increment this to force refresh
 }
 
-export default function ContactsList({ statusFilter, filters, onSelectionChange, selectedIds = [] }: ContactsListProps) {
+export default function ContactsList({ statusFilter, filters, onSelectionChange, selectedIds = [], refreshTrigger }: ContactsListProps) {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -105,6 +104,7 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
   const [screenshotModalId, setScreenshotModalId] = useState<number | null>(null)
   const [isScreenshotModalOpen, setIsScreenshotModalOpen] = useState(false)
   const [selectedContacts, setSelectedContacts] = useState<Set<number>>(new Set())
+  const [editingContactId, setEditingContactId] = useState<number | null>(null)
   const { toast } = useToast()
 
   // Sync selectedContacts with external selectedIds
@@ -139,19 +139,20 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
       newSelected.add(contactId)
     }
     setSelectedContacts(newSelected)
-    onSelectionChange?.(Array.from(newSelected))
+    const selectedContactObjects = contacts.filter(c => newSelected.has(c.id!))
+    onSelectionChange?.(Array.from(newSelected), selectedContactObjects)
   }
 
   const toggleSelectAll = () => {
     if (selectedContacts.size === contacts.length && contacts.length > 0) {
       // Deselect all
       setSelectedContacts(new Set())
-      onSelectionChange?.([])
+      onSelectionChange?.([], [])
     } else {
       // Select all
       const allIds = new Set(contacts.map(c => c.id!))
       setSelectedContacts(allIds)
-      onSelectionChange?.(Array.from(allIds))
+      onSelectionChange?.(Array.from(allIds), contacts)
     }
   }
 
@@ -240,7 +241,7 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
 
   useEffect(() => {
     fetchContacts()
-  }, [fetchContacts, filters]) // Add filters as dependency
+  }, [fetchContacts, filters, refreshTrigger]) // Add refreshTrigger as dependency
 
   const handleLoadMore = () => {
     if (!loadingMore && pagination.hasMore) {
@@ -252,10 +253,10 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
     try {
       // Get current contact to log old status
       const contact = contacts.find(c => c.id === contactId)
-      const oldStatus = contact?.relationship_status || 'new'
+      const oldStatus = contact?.relationship_status || null
 
       // Update contact status
-      await fetch(`/api/contacts/${contactId}`, {
+      const response = await fetch(`/api/contacts/${contactId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -263,8 +264,12 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
         })
       })
 
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
       // Log history entry
-      await fetch(`/api/contacts/${contactId}/history`, {
+      const historyResponse = await fetch(`/api/contacts/${contactId}/history`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -274,6 +279,10 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
           description: 'Marked as customer'
         })
       })
+
+      if (!historyResponse.ok) {
+        console.warn('Failed to log history entry, but contact update succeeded')
+      }
       
       toast({
         title: "Contact converted",
@@ -293,17 +302,21 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
 
   const handleRemoveCustomer = async (contactId: number) => {
     try {
-      await fetch(`/api/contacts/${contactId}`, {
+      const response = await fetch(`/api/contacts/${contactId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          relationship_status: 'active'
+          relationship_status: null // Set back to prospect (null instead of 'active')
         })
       })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
       
       toast({
         title: "Customer status removed",
-        description: "Contact has been changed back to active"
+        description: "Contact has been changed back to prospect"
       })
       
       fetchContacts() // Refresh data
@@ -317,36 +330,6 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
     }
   }
 
-  const handleScheduleFollowUp = async (contactId: number) => {
-    // For now, just set follow-up for tomorrow
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const followUpDate = tomorrow.toISOString().split('T')[0]
-    
-    try {
-      await fetch(`/api/contacts/${contactId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          follow_up_date: followUpDate
-        })
-      })
-      
-      toast({
-        title: "Follow-up scheduled",
-        description: "Reminder set for tomorrow"
-      })
-      
-      fetchContacts() // Refresh data
-    } catch (error) {
-      console.error('Failed to schedule follow-up:', error)
-      toast({
-        title: "Error",
-        description: "Failed to schedule follow-up",
-        variant: "destructive"
-      })
-    }
-  }
 
   const getStatusBadges = (contact: Contact) => {
     const badges = []
@@ -414,19 +397,6 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
   }
 
 
-  const getPlatformIcons = (platforms?: string[]) => {
-    if (!platforms || platforms.length === 0) return null
-    
-    return (
-      <span className="flex items-center space-x-1">
-        {platforms.map(platform => (
-          <span key={platform} title={platform} className="text-sm">
-            {getPlatformIcon(platform, 14)}
-          </span>
-        ))}
-      </span>
-    )
-  }
 
   const formatRelativeTime = (dateString?: string) => {
     if (!dateString) return 'Never'
@@ -510,42 +480,32 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
     setScreenshotModalId(null)
   }
 
-  const getNextFollowUpText = (followUpDate?: string) => {
-    if (!followUpDate) return null
-    
-    try {
-      // Use only date parts to avoid hydration mismatches
-      const date = new Date(followUpDate)
-      const now = new Date()
-      
-      // Normalize to date only
-      const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-      const nowOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      
-      const diffTime = dateOnly.getTime() - nowOnly.getTime()
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-      
-      if (diffDays < 0) return 'Overdue!'
-      if (diffDays === 0) return 'Today'
-      if (diffDays === 1) return 'Tomorrow'
-      return `In ${diffDays} days`
-    } catch {
-      return 'Unknown'
-    }
+  const handleEditContact = (contactId: number) => {
+    setEditingContactId(contactId)
   }
 
-  const isFollowUpDue = (followUpDate?: string) => {
-    if (!followUpDate) return false
-    
-    try {
-      // Use consistent date comparison to avoid hydration issues
-      const today = new Date().toISOString().split('T')[0]
-      const followUp = followUpDate.split('T')[0] // Handle full datetime strings
-      return followUp <= today
-    } catch {
-      return false
-    }
+  const handleCancelEdit = () => {
+    setEditingContactId(null)
   }
+
+  const handleSaveContact = (contactId: number, updates: Partial<Contact>) => {
+    // Update local state optimistically
+    setContacts(prevContacts => 
+      prevContacts.map(contact => 
+        contact.id === contactId 
+          ? { ...contact, ...updates }
+          : contact
+      )
+    )
+    
+    // Exit edit mode
+    setEditingContactId(null)
+    
+    // Refresh contacts to get updated data from server
+    fetchContacts()
+  }
+
+
 
   if (loading) {
     return (
@@ -600,141 +560,175 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
         {contacts.map((contact) => (
           <Card 
             key={contact.id} 
-            className={`hover:shadow-md transition-shadow cursor-pointer ${
-              selectedContacts.has(contact.id!) ? 'ring-2 ring-purple-500 bg-purple-50' : ''
+            className={`transition-shadow ${
+              editingContactId === contact.id 
+                ? '' 
+                : selectedContacts.has(contact.id!) 
+                  ? 'ring-2 ring-purple-500 bg-purple-50' 
+                  : 'hover:shadow-md cursor-pointer'
             }`}
           >
-            <CardContent className="p-4" onClick={() => handleContactClick(contact.id!)}>
-              {/* Header Row */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3 flex-1">
-                  <Checkbox
-                    checked={selectedContacts.has(contact.id!)}
-                    onCheckedChange={() => toggleSelection(contact.id!)}
-                    aria-label={`Select ${contact.name}`}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-slate-900">{contact.name}</h3>
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      {contact.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="w-3 h-3" />
-                          {contact.phone}
-                        </span>
-                      )}
-                      {contact.phone && contact.platforms && contact.platforms.length > 0 && (
-                        <span className="text-slate-400">•</span>
-                      )}
-                      {getPlatformIcons(contact.platforms)}
+            <CardContent className="p-4">
+              {editingContactId === contact.id ? (
+                /* Edit Mode */
+                <ContactEditForm
+                  contact={contact}
+                  onSave={handleSaveContact}
+                  onCancel={handleCancelEdit}
+                />
+              ) : (
+                /* View Mode */
+                <div onClick={() => handleContactClick(contact.id!)}>
+                  {/* Header Row */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3 flex-1">
+                      <Checkbox
+                        checked={selectedContacts.has(contact.id!)}
+                        onCheckedChange={() => toggleSelection(contact.id!)}
+                        aria-label={`Select ${contact.name}`}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <div className="flex-1">
+                        <div className="text-lg font-semibold text-slate-900">
+                          {contact.name}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-slate-600 mt-1">
+                          <Phone className="w-3 h-3 flex-shrink-0" />
+                          <span>{contact.phone || 'No phone number'}</span>
+                          {contact.platforms && contact.platforms.length > 0 && (
+                            <>
+                              <span className="text-slate-400">•</span>
+                              <div className="flex gap-1 flex-wrap">
+                                {contact.platforms.map((platform) => (
+                                  <span key={platform} className="text-xs bg-slate-100 px-2 py-1 rounded capitalize">
+                                    {platform}
+                                  </span>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {getTemperatureBadge(contact.latest_temperature)}
+                      {getStatusBadges(contact)}
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {getTemperatureBadge(contact.latest_temperature)}
-                  {getStatusBadges(contact)}
-                </div>
-              </div>
 
-              {/* Communication Status */}
-              <div className="mb-3">
-                {getCommunicationBadge(contact.has_two_way_communication ?? false)}
-              </div>
+                  {/* Communication Status */}
+                  <div className="mb-3">
+                    {getCommunicationBadge(contact.has_two_way_communication ?? false)}
+                  </div>
 
-              {/* Metrics Row */}
-              <div className="flex items-center gap-6 text-sm text-slate-600 mb-4">
-                <span className="font-medium">
-                  {contact.auto_contact_attempts || contact.contact_attempts || 0} engagements
-                </span>
-                <span>
-                  Last: {formatRelativeTime(contact.last_contact_date)}
-                </span>
-                {contact.screenshot_count && contact.screenshot_count > 0 && (
-                  <span className="flex items-center gap-1 text-blue-600">
-                    <Image className="w-3 h-3" />
-                    {contact.screenshot_count} screenshot{contact.screenshot_count !== 1 ? 's' : ''}
-                  </span>
-                )}
-                {contact.follow_up_date && (
-                  <span className={isFollowUpDue(contact.follow_up_date) ? 'text-red-600 font-medium' : ''}>
-                    Next: {getNextFollowUpText(contact.follow_up_date)}
-                  </span>
-                )}
-              </div>
+                  {/* Metrics Row */}
+                  <div className="flex items-center gap-6 text-sm text-slate-600 mb-4">
+                    <span className="font-medium">
+                      {contact.auto_contact_attempts || contact.contact_attempts || 0} activities
+                    </span>
+                    <span>
+                      Last: {formatRelativeTime(contact.last_contact_date)}
+                    </span>
+                    {contact.screenshot_count && contact.screenshot_count > 0 && (
+                      <span className="flex items-center gap-1 text-blue-600">
+                        <Image className="w-3 h-3" />
+                        {contact.screenshot_count} screenshot{contact.screenshot_count !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-2">
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => handleScheduleFollowUp(contact.id)}
-                  className="flex-1"
-                >
-                  <Calendar className="w-3 h-3 mr-1" />
-                  Schedule Follow-up
-                </Button>
-                
-                {contact.relationship_status === 'converted' ? (
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => handleRemoveCustomer(contact.id)}
-                    className="flex-1"
-                  >
-                    <Star className="w-3 h-3 mr-1" />
-                    Remove Customer
-                  </Button>
-                ) : (
-                  <Button 
-                    size="sm" 
-                    onClick={() => handleMarkAsCustomer(contact.id)}
-                    className="flex-1 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white"
-                  >
-                    <Star className="w-3 h-3 mr-1" />
-                    Mark as Customer
-                  </Button>
-                )}
-              </div>
+                  {/* Contact Details */}
+                  <div className="space-y-2 mb-4 pt-3 border-t border-slate-100">
+                    {contact.relationship_type && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 font-medium">Relationship:</span>
+                        <span className="text-xs bg-slate-100 px-2 py-1 rounded capitalize">
+                          {contact.relationship_type}
+                        </span>
+                      </div>
+                    )}
+                    {contact.notes && (
+                      <div>
+                        <span className="text-xs text-slate-500 font-medium block mb-1">Notes:</span>
+                        <p className="text-sm text-slate-600">{contact.notes}</p>
+                      </div>
+                    )}
+                  </div>
 
-              {/* Overdue Follow-up Alert */}
-              {isFollowUpDue(contact.follow_up_date) && (
-                <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-sm text-red-800 font-medium">
-                    ⚠️ Follow-up is overdue!
-                  </p>
-                </div>
-              )}
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleEditContact(contact.id)
+                      }}
+                      className="flex-1"
+                    >
+                      <Edit2 className="w-3 h-3 mr-1" />
+                      Edit Contact
+                    </Button>
+                    {contact.relationship_status === 'converted' ? (
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRemoveCustomer(contact.id)
+                        }}
+                        className="flex-1"
+                      >
+                        <Star className="w-3 h-3 mr-1" />
+                        Remove Customer
+                      </Button>
+                    ) : (
+                      <Button 
+                        size="sm" 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleMarkAsCustomer(contact.id)
+                        }}
+                        className="flex-1 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white"
+                      >
+                        <Star className="w-3 h-3 mr-1" />
+                        Mark as Customer
+                      </Button>
+                    )}
+                  </div>
 
-              {/* Expansion Indicator */}
-              <div className="flex items-center justify-center mt-3 pt-3 border-t">
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  {expandedContactId === contact.id ? (
+                  {/* Expansion Indicator */}
+                  <div className="flex items-center justify-center mt-3 pt-3 border-t">
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      {expandedContactId === contact.id ? (
+                        <>
+                          <ChevronUp className="w-3 h-3" />
+                          Click to collapse
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-3 h-3" />
+                          Click to view activity history
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expanded Timeline */}
+                  {expandedContactId === contact.id && (
                     <>
-                      <ChevronUp className="w-3 h-3" />
-                      Click to collapse
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="w-3 h-3" />
-                      Click to view activity history
+                      <ContactActivityTimeline
+                        activities={contactActivities}
+                        loading={activitiesLoading}
+                        onViewScreenshot={handleViewScreenshot}
+                      />
+                      <ContactHistoryTimeline
+                        history={contactHistory}
+                        loading={historyLoading}
+                      />
                     </>
                   )}
                 </div>
-              </div>
-
-              {/* Expanded Timeline */}
-              {expandedContactId === contact.id && (
-                <>
-                  <ContactActivityTimeline
-                    activities={contactActivities}
-                    loading={activitiesLoading}
-                    onViewScreenshot={handleViewScreenshot}
-                  />
-                  <ContactHistoryTimeline
-                    history={contactHistory}
-                    loading={historyLoading}
-                  />
-                </>
               )}
             </CardContent>
           </Card>

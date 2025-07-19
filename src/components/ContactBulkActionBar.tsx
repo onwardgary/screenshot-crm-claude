@@ -4,20 +4,34 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { X, Star, Trash2 } from 'lucide-react'
 
+interface Contact {
+  id: number
+  name: string
+  relationship_status?: string | null
+}
+
 interface ContactBulkActionBarProps {
-  selectedCount: number
+  selectedContacts: Contact[]
   onMarkAsCustomers: () => void
   onDelete: () => void
   onClear: () => void
 }
 
 export default function ContactBulkActionBar({
-  selectedCount,
+  selectedContacts,
   onMarkAsCustomers,
   onDelete,
   onClear
 }: ContactBulkActionBarProps) {
-  if (selectedCount === 0) return null
+  if (selectedContacts.length === 0) return null
+
+  // Determine which contacts are prospects vs customers
+  const prospects = selectedContacts.filter(c => c.relationship_status !== 'converted')
+  
+  // Show "Mark as Customer" button only if all selected contacts are prospects
+  const showMarkAsCustomer = prospects.length === selectedContacts.length && selectedContacts.length > 0
+
+  const selectedCount = selectedContacts.length
 
   return (
     <AnimatePresence>
@@ -36,14 +50,16 @@ export default function ContactBulkActionBar({
             
             <div className="h-6 w-px bg-gray-300" />
             
-            <Button
-              onClick={onMarkAsCustomers}
-              size="sm"
-              className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700"
-            >
-              <Star className="w-4 h-4 mr-1" />
-              Mark as {selectedCount === 1 ? 'Customer' : 'Customers'}
-            </Button>
+            {showMarkAsCustomer && (
+              <Button
+                onClick={onMarkAsCustomers}
+                size="sm"
+                className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700"
+              >
+                <Star className="w-4 h-4 mr-1" />
+                Mark as {selectedCount === 1 ? 'Customer' : 'Customers'}
+              </Button>
+            )}
             
             <Button
               onClick={onDelete}

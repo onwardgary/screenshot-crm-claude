@@ -28,11 +28,14 @@ export default function ContactsPage() {
     active: number;
     converted: number;
     inactive: number;
+    total: number;
     twoWay: number;
     platforms: Record<string, number>;
     temperatures: Record<string, number>;
   } | null>(null)
   const [selectedContactIds, setSelectedContactIds] = useState<number[]>([])
+  const [selectedContacts, setSelectedContacts] = useState<{id: number; name: string; relationship_status?: string | null}[]>([])
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -48,6 +51,11 @@ export default function ContactsPage() {
     } catch (error) {
       console.error('Failed to fetch contact stats:', error)
     }
+  }
+
+  const handleSelectionChange = (contactIds: number[], contacts: {id: number; name: string; relationship_status?: string | null}[]) => {
+    setSelectedContactIds(contactIds)
+    setSelectedContacts(contacts)
   }
 
   const handleBulkMarkAsCustomers = async () => {
@@ -70,6 +78,7 @@ export default function ContactsPage() {
           })
           setSelectedContactIds([])
           fetchStats() // Refresh stats
+          setRefreshTrigger(prev => prev + 1) // Trigger contacts list refresh
         } else {
           throw new Error(result.error || 'Failed to mark contacts as customers')
         }
@@ -104,6 +113,7 @@ export default function ContactsPage() {
           })
           setSelectedContactIds([])
           fetchStats() // Refresh stats
+          setRefreshTrigger(prev => prev + 1) // Trigger contacts list refresh
         } else {
           throw new Error(result.error || 'Failed to delete contacts')
         }
@@ -120,6 +130,7 @@ export default function ContactsPage() {
 
   const handleClearSelection = () => {
     setSelectedContactIds([])
+    setSelectedContacts([])
   }
 
   return (
@@ -136,7 +147,7 @@ export default function ContactsPage() {
         
         <ContactFilters 
           onFiltersChange={setFilters}
-          totalCount={(stats?.new || 0) + (stats?.active || 0) + (stats?.converted || 0) + (stats?.inactive || 0)}
+          totalCount={stats?.total || 0}
           filters={filters}
           stats={stats ? {
             new: stats.new,
@@ -151,13 +162,14 @@ export default function ContactsPage() {
         
         <ContactsList 
           filters={filters}
-          onSelectionChange={setSelectedContactIds}
+          onSelectionChange={handleSelectionChange}
           selectedIds={selectedContactIds}
+          refreshTrigger={refreshTrigger}
         />
       </div>
 
       <ContactBulkActionBar
-        selectedCount={selectedContactIds.length}
+        selectedContacts={selectedContacts}
         onMarkAsCustomers={handleBulkMarkAsCustomers}
         onDelete={handleBulkDelete}
         onClear={handleClearSelection}

@@ -124,7 +124,7 @@ interface Contact {
   phone?: string
   platforms: string[] // Array of platforms they use
   relationship_status: 'new' | 'active' | 'converted' | 'dormant'
-  relationship_type?: 'family' | 'friend' | 'stranger' | 'referral' | 'existing_customer'
+  relationship_type?: 'family' | 'friend'
   last_contact_date?: string
   contact_attempts: number
   response_rate: number
@@ -302,6 +302,23 @@ GPT-4 Vision extracts activities in this format:
 - Temperature distribution charts
 - Goal setting and progress tracking
 - Contact relationship analytics
+
+### **Manager Dashboard Requirements:**
+**Sales Management Oversight Features:**
+1. **New Lead Outreach Tracking**: Monitor how many new leads each salesperson has reached out to
+   - Track first-time contact attempts per salesperson
+   - Identify new vs. returning contacts in activity feed
+   - Measure new lead generation rate and consistency
+
+2. **Active Conversation Monitoring**: Track ongoing conversation engagement levels
+   - Monitor active conversation count per salesperson
+   - Track response rates and conversation momentum
+   - Identify stalled conversations requiring intervention
+
+3. **Inactive Lead Revisitation**: Ensure dormant leads are being followed up
+   - Track follow-up activities on previously dormant contacts
+   - Monitor time gaps between contact attempts
+   - Alert on leads that haven't been contacted within set timeframes
 
 ## Current System Status
 

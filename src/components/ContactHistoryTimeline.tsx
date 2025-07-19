@@ -4,7 +4,6 @@ import { Badge } from '@/components/ui/badge'
 import { 
   Star,
   TrendingUp,
-  Calendar,
   Users,
   Clock
 } from 'lucide-react'
@@ -12,7 +11,7 @@ import {
 interface ContactHistory {
   id: number
   contact_id: number
-  action_type: 'customer_conversion' | 'status_change' | 'follow_up_scheduled' | 'bulk_operation' | 'created'
+  action_type: 'customer_conversion' | 'status_change' | 'bulk_operation' | 'created'
   old_value?: string
   new_value?: string
   description: string
@@ -34,8 +33,6 @@ export default function ContactHistoryTimeline({
         return <Star className="w-4 h-4 text-purple-600" />
       case 'status_change':
         return <TrendingUp className="w-4 h-4 text-blue-600" />
-      case 'follow_up_scheduled':
-        return <Calendar className="w-4 h-4 text-green-600" />
       case 'bulk_operation':
         return <Users className="w-4 h-4 text-orange-600" />
       case 'created':
@@ -51,8 +48,6 @@ export default function ContactHistoryTimeline({
         return <Badge className="bg-purple-100 text-purple-800">Customer</Badge>
       case 'status_change':
         return <Badge className="bg-blue-100 text-blue-800">Status</Badge>
-      case 'follow_up_scheduled':
-        return <Badge className="bg-green-100 text-green-800">Follow-up</Badge>
       case 'bulk_operation':
         return <Badge className="bg-orange-100 text-orange-800">Bulk</Badge>
       case 'created':
