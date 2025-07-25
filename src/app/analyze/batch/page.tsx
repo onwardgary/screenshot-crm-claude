@@ -17,7 +17,9 @@ import {
   MessageSquare, 
   FileImage,
   ChevronDown,
-  CheckCircle
+  CheckCircle,
+  ArrowLeftRight,
+  Eye
 } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -27,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import ScreenshotModal from '@/components/ScreenshotModal'
 
 interface Activity {
   person_name: string
@@ -41,6 +44,7 @@ interface Activity {
   group_warning?: string
   screenshot_id?: number
   included?: boolean
+  is_two_way_communication?: boolean
 }
 
 interface BatchAnalysisData {
@@ -62,8 +66,10 @@ export default function BatchAnalyzePage() {
   const [data, setData] = useState<BatchAnalysisData | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [isSaving, setIsSaving] = useState(false)
-  const [groupChatsExcluded, setGroupChatsExcluded] = useState(false)
+  const [groupChatsExcluded, setGroupChatsExcluded] = useState(true)
   const [selectedPlatform, setSelectedPlatform] = useState<string>('all')
+  const [selectedScreenshot, setSelectedScreenshot] = useState<number | null>(null)
+  const [isScreenshotModalOpen, setIsScreenshotModalOpen] = useState(false)
 
   useEffect(() => {
     const analysisData = sessionStorage.getItem('batchAnalysisData')
@@ -99,7 +105,25 @@ export default function BatchAnalyzePage() {
   }
 
   const toggleActivity = (index: number) => {
-    updateActivity(index, { included: !activities[index].included })
+    const activity = activities[index]
+    const newIncluded = !activity.included
+    
+    updateActivity(index, { included: newIncluded })
+    
+    // If this is a group chat being included, check if we need to uncheck the global exclusion
+    if (activity.is_group_chat && newIncluded && groupChatsExcluded) {
+      setGroupChatsExcluded(false)
+    }
+    
+    // If this is a group chat being excluded, check if all group chats are now excluded
+    if (activity.is_group_chat && !newIncluded) {
+      const allGroupChatsExcluded = activities.every(act => 
+        !act.is_group_chat || !act.included || act === activity
+      )
+      if (allGroupChatsExcluded) {
+        setGroupChatsExcluded(true)
+      }
+    }
   }
 
   const toggleGroupChats = () => {
@@ -118,6 +142,17 @@ export default function BatchAnalyzePage() {
       platform: platform.toLowerCase()
     })))
   }
+
+  const openScreenshotModal = (screenshotId: number) => {
+    setSelectedScreenshot(screenshotId)
+    setIsScreenshotModalOpen(true)
+  }
+
+  const closeScreenshotModal = () => {
+    setIsScreenshotModalOpen(false)
+    setSelectedScreenshot(null)
+  }
+
 
   const saveActivities = async () => {
     setIsSaving(true)
@@ -172,11 +207,7 @@ export default function BatchAnalyzePage() {
         })
         
         sessionStorage.removeItem('batchAnalysisData')
-        
-        // Delay navigation to show the success toast
-        setTimeout(() => {
-          router.push('/activities')
-        }, 1500)
+        router.push('/activities')
       } else if (savedCount > 0 && failedCount > 0) {
         toast({
           variant: "default",
@@ -185,11 +216,7 @@ export default function BatchAnalyzePage() {
         })
         
         sessionStorage.removeItem('batchAnalysisData')
-        
-        // Delay navigation to show the partial success
-        setTimeout(() => {
-          router.push('/activities')
-        }, 2000)
+        router.push('/activities')
       } else if (failedCount > 0) {
         toast({
           variant: "destructive",
@@ -245,7 +272,7 @@ export default function BatchAnalyzePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-50 to-white">
-      <div className="max-w-6xl mx-auto p-4 py-8 space-y-6">
+      <div className="max-w-7xl mx-auto p-4 py-8 space-y-6">
         {/* Header */}
         <Card>
           <CardHeader>
@@ -275,23 +302,6 @@ export default function BatchAnalyzePage() {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button 
-                  onClick={saveActivities} 
-                  disabled={isSaving || totalIncluded === 0}
-                  className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700"
-                >
-                  {isSaving ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      Save {totalIncluded} Activities
-                    </>
-                  )}
-                </Button>
               </div>
             </div>
           </CardHeader>
@@ -332,6 +342,7 @@ export default function BatchAnalyzePage() {
               </CardContent>
             </Card>
 
+
             {/* Activities List */}
             <div className="space-y-4">
               {filteredActivities.map((activity) => {
@@ -343,48 +354,87 @@ export default function BatchAnalyzePage() {
                       !activity.included ? 'opacity-50 bg-slate-50' : ''
                     } ${activity.is_group_chat ? 'border-l-4 border-l-orange-400 bg-orange-50/30' : 'border-l-4 border-l-blue-400 bg-blue-50/10'}`}
                   >
-                    <CardContent className="pt-6">
-                      <div className="flex items-start gap-4">
-                        <Checkbox 
-                          checked={activity.included}
-                          onCheckedChange={() => toggleActivity(index)}
-                          className="mt-1"
-                        />
-                        
-                        <div className="flex-1 grid gap-4 md:grid-cols-2">
-                          {/* Left Column */}
+                    <CardContent className="p-6">
+                      <div className="grid grid-cols-[40px_80px_1fr_1fr_200px] gap-6 items-start">
+                        {/* Include/Exclude Checkbox Column */}
+                        <div className="flex justify-center pt-2">
+                          <Checkbox 
+                            checked={activity.included}
+                            onCheckedChange={() => toggleActivity(index)}
+                          />
+                        </div>
+
+                        {/* Screenshot Thumbnail Column */}
+                        <div className="flex flex-col items-center space-y-2">
+                          {activity.screenshot_id ? (
+                            <div 
+                              className="w-16 h-16 bg-slate-100 rounded-lg border-2 border-slate-200 cursor-pointer overflow-hidden hover:border-blue-400 transition-colors"
+                              onClick={() => openScreenshotModal(activity.screenshot_id!)}
+                            >
+                              <img
+                                src={`/api/screenshots/${activity.screenshot_id}`}
+                                alt={`Screenshot ${activity.screenshot_id}`}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement
+                                  target.style.display = 'none'
+                                  const parent = target.parentElement
+                                  if (parent) {
+                                    parent.innerHTML = '<div class="w-full h-full flex items-center justify-center"><svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>'
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-16 h-16 bg-slate-100 rounded-lg border-2 border-slate-200 flex items-center justify-center">
+                              <FileImage className="w-6 h-6 text-slate-400" />
+                            </div>
+                          )}
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-xs px-2 py-1 h-auto"
+                            onClick={() => activity.screenshot_id && openScreenshotModal(activity.screenshot_id)}
+                            disabled={!activity.screenshot_id}
+                          >
+                            <Eye className="w-3 h-3 mr-1" />
+                            View
+                          </Button>
+                        </div>
+
+                        {/* Contact Information Column */}
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-3">
+                            <User className="w-4 h-4 text-blue-600" />
+                            Contact Information
+                          </div>
+                          
                           <div className="space-y-3">
                             <div>
-                              <Label className="text-xs text-slate-500 flex items-center gap-1">
-                                <User className="w-3 h-3" />
-                                Name
-                              </Label>
+                              <Label className="text-xs font-medium text-slate-600 mb-1 block">Contact Name</Label>
                               <Input 
                                 value={activity.person_name || ''}
                                 onChange={(e) => updateActivity(index, { person_name: e.target.value })}
                                 placeholder="Contact name"
-                                className="mt-1"
+                                className="h-9"
                               />
                             </div>
                             
                             <div>
-                              <Label className="text-xs text-slate-500 flex items-center gap-1">
-                                <Phone className="w-3 h-3" />
-                                Phone
-                              </Label>
+                              <Label className="text-xs font-medium text-slate-600 mb-1 block">Phone Number</Label>
                               <Input 
                                 value={activity.phone || ''}
                                 onChange={(e) => updateActivity(index, { phone: e.target.value })}
                                 placeholder="+1234567890"
-                                className="mt-1"
+                                className="h-9"
                               />
                             </div>
                             
                             <div>
-                              <Label className="text-xs text-slate-500">Platform</Label>
+                              <Label className="text-xs font-medium text-slate-600 mb-1 block">Platform</Label>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" className="w-full justify-between mt-1">
+                                  <Button variant="outline" className="w-full justify-between h-9">
                                     <span className="capitalize">{activity.platform || 'Select'}</span>
                                     <ChevronDown className="w-4 h-4 ml-2" />
                                   </Button>
@@ -402,50 +452,54 @@ export default function BatchAnalyzePage() {
                               </DropdownMenu>
                             </div>
                           </div>
+                        </div>
+                        
+                        {/* Message Context Column */}
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-3">
+                            <MessageSquare className="w-4 h-4 text-green-600" />
+                            Message Context
+                          </div>
                           
-                          {/* Right Column */}
                           <div className="space-y-3">
                             <div>
-                              <Label className="text-xs text-slate-500 flex items-center gap-1">
-                                <MessageSquare className="w-3 h-3" />
-                                Last Message
-                              </Label>
+                              <Label className="text-xs font-medium text-slate-600 mb-1 block">Last Message</Label>
                               <Textarea 
                                 value={activity.message_content || ''}
                                 onChange={(e) => updateActivity(index, { message_content: e.target.value })}
                                 placeholder="Message content"
-                                className="mt-1 min-h-[60px]"
+                                className="min-h-[60px] text-sm"
                               />
                             </div>
                             
-                            <div className="flex gap-3">
-                              <div className="flex-1">
-                                <Label className="text-xs text-slate-500">From</Label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-xs font-medium text-slate-600 mb-1 block">From</Label>
                                 <select 
                                   value={activity.message_from || 'contact'}
                                   onChange={(e) => updateActivity(index, { message_from: e.target.value })}
-                                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                                  className="w-full h-9 px-3 py-2 border border-input bg-background text-sm rounded-md"
                                 >
                                   <option value="contact">Contact</option>
                                   <option value="user">You</option>
                                 </select>
                               </div>
                               
-                              <div className="flex-1">
-                                <Label className="text-xs text-slate-500">Temperature</Label>
+                              <div>
+                                <Label className="text-xs font-medium text-slate-600 mb-1 block">Temperature</Label>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" className="w-full justify-between mt-1">
-                                      <span className="capitalize flex items-center gap-1">
+                                    <Button variant="outline" className="w-full justify-between h-9">
+                                      <span className="flex items-center gap-1 text-sm">
                                         {activity.temperature === 'hot' && '🔥 Hot'}
                                         {activity.temperature === 'warm' && '🌡️ Warm'}
                                         {activity.temperature === 'cold' && '❄️ Cold'}
                                         {!activity.temperature && '🌡️ Warm'}
                                       </span>
-                                      <ChevronDown className="w-4 h-4 ml-2" />
+                                      <ChevronDown className="w-4 h-4" />
                                     </Button>
                                   </DropdownMenuTrigger>
-                                  <DropdownMenuContent className="w-full">
+                                  <DropdownMenuContent>
                                     <DropdownMenuItem onClick={() => updateActivity(index, { temperature: 'hot' })}>
                                       🔥 Hot
                                     </DropdownMenuItem>
@@ -459,52 +513,73 @@ export default function BatchAnalyzePage() {
                                 </DropdownMenu>
                               </div>
                             </div>
+
+                            {/* Two-Way Communication - Prominent */}
+                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                              <div className="flex items-center space-x-3">
+                                <Checkbox 
+                                  checked={activity.is_two_way_communication || false}
+                                  onCheckedChange={(checked) => updateActivity(index, { is_two_way_communication: !!checked })}
+                                />
+                                <div className="flex items-center gap-2">
+                                  <ArrowLeftRight className="w-4 h-4 text-blue-600" />
+                                  <Label className="text-sm font-medium text-blue-900 cursor-pointer">
+                                    Two-way conversation
+                                  </Label>
+                                </div>
+                              </div>
+                              <p className="text-xs text-blue-700 mt-1 ml-6">Both sides have communicated</p>
+                            </div>
                             
                             <div>
-                              <Label className="text-xs text-slate-500">Notes</Label>
+                              <Label className="text-xs font-medium text-slate-600 mb-1 block">Notes</Label>
                               <Input 
                                 value={activity.notes || ''}
                                 onChange={(e) => updateActivity(index, { notes: e.target.value })}
                                 placeholder="Additional notes"
-                                className="mt-1"
+                                className="h-9"
                               />
                             </div>
                           </div>
                         </div>
                         
-                        {/* Status badges */}
-                        <div className="flex flex-col gap-2">
-                          {activity.is_group_chat ? (
-                            <Badge className="bg-orange-100 text-orange-800 border-orange-300">
-                              <AlertCircle className="w-3 h-3 mr-1" />
-                              GROUP CHAT
+                        {/* Actions Column */}
+                        <div className="space-y-4">
+                          
+                          {/* Status badges */}
+                          <div className="space-y-2">
+                            {activity.is_group_chat ? (
+                              <Badge className="bg-orange-100 text-orange-800 border-orange-300 text-xs">
+                                <AlertCircle className="w-3 h-3 mr-1" />
+                                GROUP CHAT
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-blue-100 text-blue-800 border-blue-300 text-xs">
+                                <User className="w-3 h-3 mr-1" />
+                                1-on-1
+                              </Badge>
+                            )}
+                            
+                            <Badge variant="outline" className="text-xs capitalize block">
+                              <FileImage className="w-3 h-3 mr-1" />
+                              {activity.platform || 'unknown'}
                             </Badge>
-                          ) : (
-                            <Badge className="bg-blue-100 text-blue-800 border-blue-300">
-                              <User className="w-3 h-3 mr-1" />
-                              1-on-1
-                            </Badge>
-                          )}
-                          <Badge variant="outline" className="text-xs capitalize">
-                            <FileImage className="w-3 h-3 mr-1" />
-                            {activity.platform || 'unknown'}
-                          </Badge>
-                          {activity.screenshot_id && (
-                            <Badge variant="outline" className="text-xs">
-                              Screenshot #{activity.screenshot_id}
-                            </Badge>
+                            
+                            {activity.timestamp && (
+                              <Badge variant="outline" className="text-xs block">
+                                {activity.timestamp}
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          {activity.group_warning && (
+                            <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
+                              <AlertCircle className="w-3 h-3 inline mr-1" />
+                              {activity.group_warning}
+                            </div>
                           )}
                         </div>
                       </div>
-                      
-                      {activity.group_warning && (
-                        <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-md">
-                          <p className="text-sm text-orange-700">
-                            <AlertCircle className="w-4 h-4 inline mr-1" />
-                            {activity.group_warning}
-                          </p>
-                        </div>
-                      )}
                     </CardContent>
                   </Card>
                 )
@@ -513,36 +588,48 @@ export default function BatchAnalyzePage() {
           </TabsContent>
         </Tabs>
 
-        {/* Footer Actions */}
-        <Card className="sticky bottom-4 shadow-lg">
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-slate-600">
-                <CheckCircle className="w-4 h-4 inline mr-1 text-green-600" />
-                {totalIncluded} activities selected for saving
+        {/* Clean Bottom Save Section */}
+        <div className="bg-white border-t border-slate-200 p-6 rounded-lg shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <span className="font-medium">{totalIncluded} activities selected</span>
               </div>
-              <Button 
-                onClick={saveActivities} 
-                disabled={isSaving || totalIncluded === 0}
-                size="lg"
-                className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700"
-              >
-                {isSaving ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    Save {totalIncluded} Activities
-                  </>
-                )}
-              </Button>
+              {totalIncluded > 0 && (
+                <div className="text-xs text-slate-500">
+                  Ready to save to your activity list
+                </div>
+              )}
             </div>
-          </CardContent>
-        </Card>
+            <Button 
+              onClick={saveActivities} 
+              disabled={isSaving || totalIncluded === 0}
+              size="lg"
+              className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700"
+            >
+              {isSaving ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Save {totalIncluded} Activities
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       </div>
+
+      {/* Screenshot Modal */}
+      <ScreenshotModal
+        screenshotId={selectedScreenshot}
+        isOpen={isScreenshotModalOpen}
+        onClose={closeScreenshotModal}
+      />
     </div>
   )
 }
