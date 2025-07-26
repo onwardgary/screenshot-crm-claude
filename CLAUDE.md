@@ -645,6 +645,48 @@ max_tokens: 800  // Reduce from 1500
 - **Phone Compatibility**: Different phone numbers are never grouped together
 - **Toast System**: Consistent `useToast()` hook across all components
 
+### **SaaS Timezone Architecture:**
+
+**Default Timezone**: Singapore (Asia/Singapore, UTC+8) - for consistent business operations
+
+**Implementation Strategy**:
+1. **Client Timezone Detection**: Browser automatically detects user timezone via `Intl.DateTimeFormat()`
+2. **API Timezone Parameter**: All date-sensitive APIs accept `?timezone=` parameter  
+3. **Server-Side Calculations**: All date logic uses user's timezone for accurate "today", "this week", etc.
+4. **Database Storage**: Keep UTC timestamps for consistency, convert to user timezone for display
+
+**Key Files**:
+- `/lib/timezoneUtils.ts`: Core timezone utilities and date calculations
+- `/api/analytics/dashboard/route.ts`: Timezone-aware dashboard metrics
+- `ActivityStreakCalendar.tsx`: Timezone-aware calendar display
+- All components use `getBrowserTimezone()` for client-side timezone detection
+
+**API Usage**:
+```typescript
+// Frontend automatically detects and sends user timezone
+const userTimezone = getBrowserTimezone() // e.g., "America/New_York"
+const response = await fetch(`/api/analytics/dashboard?timezone=${userTimezone}`)
+
+// API calculates dates in user's timezone
+const todayStr = getDateInTimezone(userTimezone) // "2025-07-27" in Singapore, "2025-07-26" in NY
+```
+
+**Supported Timezones**:
+- Asia/Singapore (default, UTC+8)
+- Asia/Tokyo, Asia/Seoul (UTC+9)
+- Asia/Hong_Kong, Asia/Kuala_Lumpur (UTC+8)
+- America/New_York (UTC-5/-4)
+- America/Los_Angeles (UTC-8/-7)
+- Europe/London (UTC+0/+1)
+- And all other IANA timezone identifiers
+
+**Benefits for SaaS Deployment**:
+- ✅ Users see correct "today" regardless of server location
+- ✅ Activity streaks work properly for international users  
+- ✅ Dashboard metrics reflect user's business hours
+- ✅ Automatic timezone detection with Singapore fallback
+- ✅ Consistent experience across different deployment regions
+
 ## File Structure
 
 ```

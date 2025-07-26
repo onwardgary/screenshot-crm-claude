@@ -4,110 +4,99 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Navbar from '@/components/Navbar'
 import ActivityStreakCalendar from '@/components/ActivityStreakCalendar'
+import GoalProgressCard from '@/components/GoalProgressCard'
 import { getPlatformIcon } from '@/lib/platformUtils'
 import { 
   Users,
-  Camera,
   TrendingUp,
   Target,
   MessageCircle,
   Star,
   BarChart3
 } from 'lucide-react'
+import { getBrowserTimezone, DEFAULT_TIMEZONE } from '@/lib/timezoneUtils'
 
-interface AnalyticsData {
-  activityMetrics: {
-    date: string;
-    count: number;
-    platform: string;
-    platform_breakdown: Record<string, number>;
-    temperature_breakdown: Record<string, number>;
-  }[]
-  contactMetrics: {
-    total_contacts: number
-    new_contacts: number
-    active_contacts: number
-    converted_contacts: number
-    dormant_contacts: number
-    avg_contact_attempts: number
-    avg_response_rate: number
+interface DashboardData {
+  activities: {
+    today: number
+    thisWeek: number
+    thisMonth: number
+    total: number
+    screenshots: number
+    uniquePeople: number
   }
-  activityStreak: Array<{
-    activity_date: string
-    daily_count: number
+  contacts: {
+    total: number
+    new: number
+    active: number
+    converted: number
+    dormant: number
+  }
+  goals: {
+    newContacts: {
+      today: number
+      thisWeek: number
+      thisMonth: number
+    }
+    activeTwoWay: {
+      today: number
+      thisWeek: number
+      thisMonth: number
+    }
+  }
+  temperature: {
+    hot: number
+    warm: number
+    cold: number
+  }
+  streak: {
+    current: number
+    data: Array<{
+      activity_date: string
+      daily_count: number
+    }>
+  }
+  platforms: Array<{
+    platform: string
+    count: number
   }>
   timeframe: string
+  lastUpdated: string
 }
 
 export default function HomePage() {
-  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [timeframe, setTimeframe] = useState(7)
   const [isClient, setIsClient] = useState(false)
 
 
   useEffect(() => {
     setIsClient(true)
     fetchAnalytics()
-  }, [timeframe]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const fetchAnalytics = async () => {
     try {
-      const response = await fetch(`/api/analytics?days=${timeframe}`)
+      // Get user's timezone (defaults to Singapore if unable to detect)
+      const userTimezone = isClient ? getBrowserTimezone() : DEFAULT_TIMEZONE
+      const response = await fetch(`/api/analytics/dashboard?timezone=${encodeURIComponent(userTimezone)}`)
       const data = await response.json()
-      setAnalytics(data)
+      setDashboard(data)
     } catch (error) {
-      console.error('Failed to fetch analytics:', error)
+      console.error('Failed to fetch dashboard analytics:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const calculateActivityStreak = () => {
-    if (!analytics?.activityStreak || !isClient) return 0
-    
-    let streak = 0
-    const today = new Date()
-    const sortedDates = analytics.activityStreak.sort((a, b) => 
-      new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime()
-    )
-    
-    // Start from yesterday (or today if we have today's activity)
-    const currentDate = new Date(today)
-    const todayStr = today.toISOString().split('T')[0]
-    const hasToday = sortedDates.some(d => d.activity_date === todayStr && d.daily_count > 0)
-    
-    // If no activity today, start from yesterday
-    if (!hasToday) {
-      currentDate.setDate(currentDate.getDate() - 1)
-    }
-    
-    // Count backwards to find consecutive days
-    while (true) {
-      const dateStr = currentDate.toISOString().split('T')[0]
-      const dayActivity = sortedDates.find(d => d.activity_date === dateStr)
-      
-      if (dayActivity && dayActivity.daily_count > 0) {
-        streak++
-        currentDate.setDate(currentDate.getDate() - 1)
-      } else {
-        break
-      }
-    }
-    
-    return streak
-  }
-
-  const getTotalActivities = () => {
-    if (!analytics?.activityMetrics) return 0
-    return analytics.activityMetrics.reduce((sum, metric) => sum + (metric.count || 0), 0)
+  const getCurrentStreak = () => {
+    if (!dashboard?.streak || !isClient) return 0
+    return dashboard.streak.current
   }
 
   const getTopPlatform = () => {
-    if (!analytics?.activityMetrics || analytics.activityMetrics.length === 0) return null
-    return analytics.activityMetrics.reduce((top, current) => 
-      (current.count || 0) > (top.count || 0) ? current : top
-    )
+    if (!dashboard?.platforms || dashboard.platforms.length === 0) return null
+    return dashboard.platforms[0] // Already sorted by count DESC
   }
 
   if (loading) {
@@ -124,8 +113,7 @@ export default function HomePage() {
     )
   }
 
-  const activityStreak = calculateActivityStreak()
-  const totalActivities = getTotalActivities()
+  const currentStreak = getCurrentStreak()
   const topPlatform = getTopPlatform()
 
   return (
@@ -135,61 +123,73 @@ export default function HomePage() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Sales Activity Dashboard</h1>
-          <p className="text-slate-600">Track your sales activities and relationship building</p>
-        </div>
-
-        {/* Timeframe Selector */}
-        <div className="mb-6">
-          <div className="flex space-x-2">
-            {[7, 14, 30].map((days) => (
-              <button
-                key={days}
-                onClick={() => setTimeframe(days)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  timeframe === days
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {days} days
-              </button>
-            ))}
+          <div className="flex items-center justify-between">
+            <p className="text-slate-600">Track your sales activities and relationship building</p>
+            {isClient && (
+              <p className="text-slate-500 text-sm">
+                {new Date().toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Activity Metrics Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="md:col-span-2">
+
+        {/* Hero Motivation Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
+          <div className="lg:col-span-3">
             <ActivityStreakCalendar 
-              activityStreak={analytics?.activityStreak || []}
-              currentStreak={activityStreak}
+              activityStreak={dashboard?.streak.data || []}
+              currentStreak={currentStreak}
             />
           </div>
+          
+          <div className="lg:col-span-2">
+            <GoalProgressCard dashboard={dashboard} />
+          </div>
+        </div>
 
+        {/* Performance Pulse Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Screenshots Processed</CardTitle>
-              <Camera className="h-4 w-4 text-blue-600" />
+              <CardTitle className="text-sm font-medium">Today</CardTitle>
+              <MessageCircle className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {analytics?.activityMetrics.reduce((sum, m) => sum + (m.count || 0), 0) || 0}
-              </div>
+              <div className="text-2xl font-bold">{dashboard?.activities.today || 0}</div>
               <p className="text-xs text-muted-foreground">
-                Last {timeframe} days
+                Activities today
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Activities</CardTitle>
-              <MessageCircle className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium">This Week</CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalActivities}</div>
+              <div className="text-2xl font-bold">{dashboard?.activities.thisWeek || 0}</div>
               <p className="text-xs text-muted-foreground">
-                Conversations recorded
+                Activities this week
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">This Month</CardTitle>
+              <BarChart3 className="h-4 w-4 text-purple-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{dashboard?.activities.thisMonth || 0}</div>
+              <p className="text-xs text-muted-foreground">
+                Activities this month
               </p>
             </CardContent>
           </Card>
@@ -201,7 +201,7 @@ export default function HomePage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {topPlatform ? topPlatform.date : 'None'}
+                {topPlatform ? topPlatform.platform : 'None'}
               </div>
               <p className="text-xs text-muted-foreground">
                 {topPlatform ? `${topPlatform.count} activities` : 'No activities yet'}
@@ -210,17 +210,19 @@ export default function HomePage() {
           </Card>
         </div>
 
-        {/* Contact Metrics Row */}
+        {/* Relationship Health Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
+              <CardTitle className="text-sm font-medium">People Contacted</CardTitle>
               <Users className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{analytics?.contactMetrics.total_contacts || 0}</div>
+              <div className="text-2xl font-bold">
+                {dashboard?.activities.uniquePeople || 0}
+              </div>
               <p className="text-xs text-muted-foreground">
-                People in your network
+                Unique individuals reached
               </p>
             </CardContent>
           </Card>
@@ -231,7 +233,7 @@ export default function HomePage() {
               <TrendingUp className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{analytics?.contactMetrics.active_contacts || 0}</div>
+              <div className="text-2xl font-bold">{dashboard?.contacts.active || 0}</div>
               <p className="text-xs text-muted-foreground">
                 Currently engaging
               </p>
@@ -240,59 +242,57 @@ export default function HomePage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Contact Attempts</CardTitle>
-              <Target className="h-4 w-4 text-orange-600" />
+              <CardTitle className="text-sm font-medium">Pipeline Engagement Rate</CardTitle>
+              <MessageCircle className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {Math.round(analytics?.contactMetrics.avg_contact_attempts || 0)}
+                {Math.round(((dashboard?.contacts.active || 0) / Math.max((dashboard?.contacts.active || 0) + (dashboard?.contacts.new || 0), 1)) * 100)}%
               </div>
               <p className="text-xs text-muted-foreground">
-                Per contact
+                Active prospects responding
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Response Rate</CardTitle>
-              <MessageCircle className="h-4 w-4 text-purple-600" />
+              <CardTitle className="text-sm font-medium">Total Network</CardTitle>
+              <Target className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {Math.round((analytics?.contactMetrics.avg_response_rate || 0) * 100)}%
-              </div>
+              <div className="text-2xl font-bold">{dashboard?.contacts.total || 0}</div>
               <p className="text-xs text-muted-foreground">
-                Average response
+                People in database
               </p>
             </CardContent>
           </Card>
         </div>
 
         {/* Platform Breakdown */}
-        {analytics?.activityMetrics && analytics.activityMetrics.length > 0 && (
+        {dashboard?.platforms && dashboard.platforms.length > 0 && (
           <Card className="mb-8">
             <CardHeader>
               <CardTitle>Platform Activity Breakdown</CardTitle>
-              <CardDescription>Your activity across different platforms</CardDescription>
+              <CardDescription>Your activity across different platforms (this week)</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {analytics.activityMetrics.map((metric, index) => (
+                {dashboard.platforms.map((platform, index) => (
                   <div key={index} className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <div className="w-6 h-6 flex items-center justify-center">
-                        {getPlatformIcon(metric.platform, 20)}
+                        {getPlatformIcon(platform.platform, 20)}
                       </div>
                       <div>
-                        <div className="font-medium capitalize">{metric.platform}</div>
+                        <div className="font-medium capitalize">{platform.platform}</div>
                         <div className="text-sm text-muted-foreground">
-                          {metric.count || 0} total activities
+                          {platform.count} activities this week
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold">{metric.count}</div>
+                      <div className="text-2xl font-bold">{platform.count}</div>
                       <div className="text-sm text-muted-foreground">activities</div>
                     </div>
                   </div>
@@ -303,8 +303,8 @@ export default function HomePage() {
         )}
 
         {/* Contact Status Distribution */}
-        {analytics?.contactMetrics && analytics.contactMetrics.total_contacts > 0 && (
-          <Card>
+        {dashboard?.contacts && dashboard.contacts.total > 0 && (
+          <Card className="mb-8">
             <CardHeader>
               <CardTitle>Contact Status Distribution</CardTitle>
               <CardDescription>Breakdown of your contact relationships</CardDescription>
@@ -313,27 +313,65 @@ export default function HomePage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center p-4 bg-blue-50 rounded-lg">
                   <div className="text-2xl font-bold text-blue-600">
-                    {analytics.contactMetrics.new_contacts}
+                    {dashboard.contacts.new}
                   </div>
                   <div className="text-sm text-blue-700">New</div>
                 </div>
                 <div className="text-center p-4 bg-green-50 rounded-lg">
                   <div className="text-2xl font-bold text-green-600">
-                    {analytics.contactMetrics.active_contacts}
+                    {dashboard.contacts.active}
                   </div>
                   <div className="text-sm text-green-700">Active</div>
                 </div>
                 <div className="text-center p-4 bg-purple-50 rounded-lg">
                   <div className="text-2xl font-bold text-purple-600">
-                    {analytics.contactMetrics.converted_contacts}
+                    {dashboard.contacts.converted}
                   </div>
                   <div className="text-sm text-purple-700">Converted</div>
                 </div>
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
                   <div className="text-2xl font-bold text-gray-600">
-                    {analytics.contactMetrics.dormant_contacts}
+                    {dashboard.contacts.dormant}
                   </div>
                   <div className="text-sm text-gray-700">Dormant</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Temperature Distribution */}
+        {dashboard?.temperature && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Activity Temperature Distribution</CardTitle>
+              <CardDescription>Engagement level of your recent conversations</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-red-50 rounded-lg">
+                  <div className="text-2xl font-bold text-red-600">
+                    {dashboard.temperature.hot}
+                  </div>
+                  <div className="text-sm text-red-700 flex items-center justify-center gap-1">
+                    🔥 Hot
+                  </div>
+                </div>
+                <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                  <div className="text-2xl font-bold text-yellow-600">
+                    {dashboard.temperature.warm}
+                  </div>
+                  <div className="text-sm text-yellow-700 flex items-center justify-center gap-1">
+                    🌡️ Warm
+                  </div>
+                </div>
+                <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {dashboard.temperature.cold}
+                  </div>
+                  <div className="text-sm text-blue-700 flex items-center justify-center gap-1">
+                    ❄️ Cold
+                  </div>
                 </div>
               </div>
             </CardContent>

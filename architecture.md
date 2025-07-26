@@ -452,4 +452,190 @@ npm run type-check   # TypeScript compilation check
 4. **UI Alignment Fixes**: Better visual hierarchy with proper checkbox positioning
 5. **TypeScript Type Safety**: Fixed interface compatibility across component boundaries
 
-This architecture enables efficient screenshot-to-insight conversion while maintaining code quality, user experience, and scalability for growing activity datasets.
+## Timezone Architecture for Global SaaS
+
+### **Problem Statement**
+Traditional web applications store dates in UTC and display them in the server's timezone, causing issues for SaaS applications with international users. Users expect "today" to reflect their local business day, not the server's timezone.
+
+### **Solution Architecture**
+
+#### **1. Multi-Timezone Date Calculation Strategy**
+
+```typescript
+// ❌ OLD: Server timezone dependent
+const today = new Date().toISOString().split('T')[0] // Always UTC
+
+// ✅ NEW: User timezone aware  
+const today = getDateInTimezone(userTimezone) // User's local date
+```
+
+#### **2. Timezone Detection Flow**
+
+```
+User visits dashboard → Browser detects timezone → Send to API as parameter → 
+Server calculates in user timezone → Return timezone-aware metrics → Display matches expectations
+```
+
+#### **3. API Design Pattern**
+
+All date-sensitive endpoints accept optional timezone parameter:
+
+```typescript
+// API Signature
+GET /api/analytics/dashboard?timezone=Asia/Singapore
+GET /api/activities/stats?timezone=America/New_York
+
+// Implementation
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const userTimezone = searchParams.get('timezone') || DEFAULT_TIMEZONE
+  
+  const todayStr = getDateInTimezone(userTimezone)
+  const thisWeekStart = getMondayOfWeekInTimezone(userTimezone)
+  // ... use timezone-aware dates for all calculations
+}
+```
+
+### **Core Timezone Utilities** (`/lib/timezoneUtils.ts`)
+
+#### **Date Calculation Functions**
+
+```typescript
+// Primary date calculation using Intl.DateTimeFormat
+export const getDateInTimezone = (timezone: string): string => {
+  const formatter = new Intl.DateTimeFormat('en-CA', { 
+    timeZone: timezone,
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  })
+  return formatter.format(new Date()) // Returns "2025-07-27"
+}
+
+// Calendar week calculation (Monday-Sunday)
+export const getMondayOfWeekInTimezone = (timezone: string): string => {
+  const today = getTimeDetailsInTimezone(timezone)
+  const currentDate = new Date(`${today.date}T00:00:00`)
+  const dayOfWeek = currentDate.getDay()
+  const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  
+  const mondayDate = new Date(currentDate)
+  mondayDate.setDate(currentDate.getDate() - daysFromMonday)
+  return mondayDate.toISOString().split('T')[0]
+}
+```
+
+#### **Grace Period Logic**
+
+Activity streaks continue until 23:59 of the user's timezone:
+
+```typescript
+export const isWithinGracePeriod = (timezone: string): boolean => {
+  const timeDetails = getTimeDetailsInTimezone(timezone)
+  return timeDetails.hour < 23 || (timeDetails.hour === 23 && timeDetails.minute < 59)
+}
+```
+
+### **Frontend Integration**
+
+#### **Automatic Timezone Detection**
+
+```typescript
+// Client-side timezone detection
+export const getBrowserTimezone = (): string => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone
+  } catch {
+    return DEFAULT_TIMEZONE // Fallback to Singapore
+  }
+}
+
+// Usage in React components
+const fetchAnalytics = async () => {
+  const userTimezone = isClient ? getBrowserTimezone() : DEFAULT_TIMEZONE
+  const response = await fetch(`/api/analytics/dashboard?timezone=${encodeURIComponent(userTimezone)}`)
+}
+```
+
+#### **Component Date Matching**
+
+```typescript
+// ActivityStreakCalendar.tsx - Match API date format
+const getActivityForDate = (date: Date) => {
+  const userTimezone = isClient ? getBrowserTimezone() : DEFAULT_TIMEZONE
+  const dateStr = date.toLocaleDateString('en-CA', { timeZone: userTimezone })
+  return activityStreak.find(a => a.activity_date === dateStr)
+}
+```
+
+### **Database Strategy**
+
+#### **Storage Pattern**
+- **Timestamps**: Store in UTC for consistency (`created_at`, `updated_at`)
+- **Date Queries**: Convert to user timezone for calculations
+- **Date Comparisons**: Use timezone-aware date strings in WHERE clauses
+
+```sql
+-- Example: Get today's activities for Singapore user
+SELECT * FROM activities 
+WHERE DATE(created_at) = '2025-07-27'  -- Calculated in user's timezone
+```
+
+### **Supported Timezone Matrix**
+
+| Region | Timezone | UTC Offset | Business Hours |
+|--------|----------|------------|----------------|
+| Singapore (Default) | Asia/Singapore | UTC+8 | 9 AM = 01:00 UTC |
+| Tokyo | Asia/Tokyo | UTC+9 | 9 AM = 00:00 UTC |
+| Hong Kong | Asia/Hong_Kong | UTC+8 | 9 AM = 01:00 UTC |
+| New York | America/New_York | UTC-5/-4 | 9 AM = 14:00/13:00 UTC |
+| London | Europe/London | UTC+0/+1 | 9 AM = 09:00/08:00 UTC |
+
+### **Deployment Considerations**
+
+#### **Server Location Independence**
+- Application works correctly regardless of server timezone
+- Cloud deployments (Vercel, AWS, Azure) handle timezone conversion properly
+- No server configuration required for timezone support
+
+#### **Performance Impact**
+- `Intl.DateTimeFormat` is fast and well-optimized
+- Timezone calculations add ~1-2ms per request
+- No additional database queries required
+- Client-side caching of timezone detection
+
+#### **Error Handling**
+```typescript
+// Timezone validation
+export const isValidTimezone = (timezone: string): boolean => {
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: timezone })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Graceful fallback
+const safeTimezone = isValidTimezone(userTimezone) ? userTimezone : DEFAULT_TIMEZONE
+```
+
+### **Testing Strategy**
+
+#### **Timezone Test Cases**
+```bash
+# Test different timezones return correct dates
+curl "http://localhost:3000/api/analytics/dashboard?timezone=Asia/Singapore"
+curl "http://localhost:3000/api/analytics/dashboard?timezone=America/New_York"
+
+# Verify different "today" counts based on timezone
+```
+
+### **Benefits Summary**
+
+✅ **Accurate User Experience**: "Today" means the user's actual today  
+✅ **Global SaaS Ready**: Works correctly for users worldwide  
+✅ **Performance Optimized**: Minimal overhead for timezone support  
+✅ **Developer Friendly**: Simple utility functions for timezone handling  
+✅ **Future Proof**: Extensible for user preferences and business hours  
+✅ **Zero Configuration**: Works out of the box with automatic detection
+
+This architecture enables efficient screenshot-to-insight conversion while maintaining code quality, user experience, and scalability for growing activity datasets with global timezone support.

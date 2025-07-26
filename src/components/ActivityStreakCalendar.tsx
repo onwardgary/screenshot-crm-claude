@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Activity, Flame, Circle } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { getDateInTimezone, getBrowserTimezone, DEFAULT_TIMEZONE } from '@/lib/timezoneUtils'
 
 interface ActivityStreakCalendarProps {
   activityStreak: Array<{
@@ -45,9 +46,11 @@ export default function ActivityStreakCalendar({
     setIsClient(true)
   }, [])
 
-  // Get activity for a specific date
+  // Get activity for a specific date using timezone-aware formatting
   const getActivityForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0]
+    // Use timezone-aware date formatting to match API
+    const userTimezone = isClient ? getBrowserTimezone() : DEFAULT_TIMEZONE
+    const dateStr = date.toLocaleDateString('en-CA', { timeZone: userTimezone })
     return activityStreak.find(a => a.activity_date === dateStr)
   }
 
