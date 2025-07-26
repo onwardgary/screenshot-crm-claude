@@ -111,7 +111,7 @@ src/app/api/
 ```
 src/components/
 ├── Core UI Components
-│   ├── ActivityList.tsx           # Activity display with selection, temperature badges
+│   ├── ActivityList.tsx           # Activity display with selection, temperature & communication badges
 │   ├── ContactsList.tsx           # Contact cards with expansion, timeline integration
 │   ├── MultiScreenshotUpload.tsx  # Drag/drop file upload with platform override
 │   ├── ActivityFilters.tsx        # Search, sort, platform, temperature filtering
@@ -122,7 +122,8 @@ src/components/
 │   ├── ContactActivityTimeline.tsx # Conversation history with screenshots
 │   ├── ContactHistoryTimeline.tsx # Audit trail for contact changes
 │   ├── ScreenshotModal.tsx       # Full-size screenshot viewer with download
-│   └── BulkActionBar.tsx         # Multi-select operations toolbar
+│   ├── BulkActionBar.tsx         # Multi-select operations toolbar for activities
+│   └── ContactBulkActionBar.tsx  # Smart bulk actions for contact management
 ├── Organization Workflows
 │   ├── OrganizeContactModal.tsx   # Smart organize all activities
 │   ├── ConvertContactsModal.tsx   # Convert selected activities to contacts
@@ -148,7 +149,9 @@ src/components/
 1. **Activity Flow**: `MultiScreenshotUpload` → AI processing → `ActivityList` → bulk selection → assignment modals
 2. **Contact Management**: `ContactsList` → expansion → `ContactActivityTimeline` → `ScreenshotModal`
 3. **Search & Filter**: `ActivityFilters`/`ContactFilters` → parent components → filtered results
-4. **Bulk Operations**: `BulkActionBar` → modal workflows → database updates → UI refresh
+4. **Bulk Operations**: 
+   - Activities: `BulkActionBar` → modal workflows → database updates → UI refresh
+   - Contacts: `ContactBulkActionBar` → smart action visibility → bulk operations → pagination preservation
 
 ### 4. Business Logic Layer
 ```
@@ -184,6 +187,7 @@ activities (
   temperature TEXT DEFAULT 'warm', -- 'hot', 'warm', 'cold'
   notes TEXT,                      -- User notes
   is_group_chat BOOLEAN DEFAULT 0, -- Group conversation detection
+  is_two_way_communication BOOLEAN DEFAULT 0, -- User-controlled two-way communication flag
   contact_id INTEGER,              -- FK to contacts table (NULL = unorganized)
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -360,10 +364,12 @@ Detailed Flow:
 
 ### Performance Optimizations
 - **Pagination**: 15 items per page with load-more functionality
+- **Pagination Preservation**: `refreshAllContacts()` maintains loaded contacts after edits
 - **Database Indexing**: Optimized queries for large activity datasets
 - **Client-Side Filtering**: Debounced search with multiple field support
 - **Lazy Loading**: Progressive screenshot loading in modals
 - **Memoization**: React optimization for expensive calculations
+- **Smart Bulk Actions**: Intelligent action visibility based on selection analysis
 
 ### Mobile Responsiveness
 - **Breakpoint Design**: Tailwind responsive classes throughout
@@ -421,5 +427,29 @@ npm run type-check   # TypeScript compilation check
 2. **Fuzzy Matching**: Name similarity detection while respecting phone differences
 3. **Group Chat Filtering**: Automatic detection and optional exclusion
 4. **Platform Integration**: Consistent experience across WhatsApp, Instagram, TikTok
+5. **Smart Bulk Actions**: Context-aware action visibility (e.g., "Mark as Customer" only for prospects)
+6. **Pagination Preservation**: Maintains contact visibility after edits regardless of load state
+
+### Recent Architecture Improvements
+
+#### July 26, 2025: Navigation & State Synchronization Fixes
+1. **Navigation Timing Optimization**: Removed artificial delays from batch save navigation for immediate user feedback
+2. **Checkbox State Synchronization**: Implemented bidirectional sync logic between global and individual group chat toggles
+3. **User Experience Flow**: Enhanced save completion workflow with instant routing to activities page
+4. **State Management Logic**: Added smart detection in toggleActivity() to maintain UI consistency
+5. **Component Interaction**: Improved checkbox behavior to reflect actual inclusion/exclusion state
+
+#### July 20, 2025: Communication Badge Implementation
+1. **Visual Consistency Enhancement**: Added two-way communication badges to activity cards matching contact card functionality
+2. **Component Interface Updates**: Extended Activity interface to include `is_two_way_communication` field
+3. **Icon Integration**: Added `ArrowLeftRight` from lucide-react for communication status indicators
+4. **Badge System Standardization**: Unified badge design pattern across ActivityList and ContactsList components
+
+#### July 19, 2025: Bulk Action & Pagination Improvements
+1. **Enhanced Bulk Action Logic**: `ContactBulkActionBar` now receives full contact objects for intelligent decision making
+2. **Pagination State Management**: New `refreshAllContacts()` function prevents data loss during edits
+3. **Component Data Flow**: Improved parent-child communication with contact objects alongside IDs
+4. **UI Alignment Fixes**: Better visual hierarchy with proper checkbox positioning
+5. **TypeScript Type Safety**: Fixed interface compatibility across component boundaries
 
 This architecture enables efficient screenshot-to-insight conversion while maintaining code quality, user experience, and scalability for growing activity datasets.

@@ -76,7 +76,7 @@ export default function ContactsPage() {
             title: "Customers marked",
             description: `Successfully marked ${result.results.success} contacts as customers`
           })
-          setSelectedContactIds([])
+          handleClearSelection() // Clear both selectedContactIds and selectedContacts
           fetchStats() // Refresh stats
           setRefreshTrigger(prev => prev + 1) // Trigger contacts list refresh
         } else {
@@ -111,7 +111,7 @@ export default function ContactsPage() {
             title: "Contacts deleted",
             description: `Successfully deleted ${result.results.success} contacts`
           })
-          setSelectedContactIds([])
+          handleClearSelection() // Clear both selectedContactIds and selectedContacts
           fetchStats() // Refresh stats
           setRefreshTrigger(prev => prev + 1) // Trigger contacts list refresh
         } else {

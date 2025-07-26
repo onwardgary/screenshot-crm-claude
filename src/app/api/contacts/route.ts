@@ -17,9 +17,13 @@ function getContactsWithMetrics(contacts: Record<string, unknown>[]) {
       const activityCountStmt = db.prepare('SELECT COUNT(*) as count FROM activities WHERE contact_id = ?')
       const activityCount = activityCountStmt.get(contact.id) as { count: number }
       
-      // Check for two-way communication (contact has replied)
-      const twoWayStmt = db.prepare('SELECT COUNT(*) as count FROM activities WHERE contact_id = ? AND message_from = ?')
-      const twoWayCount = twoWayStmt.get(contact.id, 'contact') as { count: number }
+      // Check for two-way communication - prioritize user input over automatic detection
+      const userMarkedTwoWayStmt = db.prepare('SELECT COUNT(*) as count FROM activities WHERE contact_id = ? AND is_two_way_communication = 1')
+      const userMarkedTwoWayCount = userMarkedTwoWayStmt.get(contact.id) as { count: number }
+      
+      // Fallback to automatic detection (contact has replied) if no user input
+      const autoTwoWayStmt = db.prepare('SELECT COUNT(*) as count FROM activities WHERE contact_id = ? AND message_from = ?')
+      const autoTwoWayCount = autoTwoWayStmt.get(contact.id, 'contact') as { count: number }
       
       // Get latest activity for temperature and last contact date
       const latestActivityStmt = db.prepare('SELECT temperature, created_at FROM activities WHERE contact_id = ? ORDER BY created_at DESC LIMIT 1')
@@ -32,7 +36,7 @@ function getContactsWithMetrics(contacts: Record<string, unknown>[]) {
       return {
         ...contact,
         auto_contact_attempts: activityCount.count, // Total activities (all activities)
-        has_two_way_communication: twoWayCount.count > 0,
+        has_two_way_communication: userMarkedTwoWayCount.count > 0 || autoTwoWayCount.count > 0,
         latest_temperature: latestActivity?.temperature || 'warm',
         last_contact_date: latestActivity?.created_at || contact.last_contact_date,
         screenshot_count: screenshotCount.count

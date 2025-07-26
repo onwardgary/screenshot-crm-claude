@@ -6,6 +6,117 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 })
 
+// Phone number normalization function
+function normalizePhoneNumber(phone: string | null): string | null {
+  if (!phone || typeof phone !== 'string') return phone
+  
+  // Remove common separators and formatting  
+  let cleaned = phone.replace(/[\s\-\(\)\.]/g, '')
+  
+  // Remove extensions (common patterns)
+  cleaned = cleaned.replace(/(?:ext|x|extension).*$/i, '')
+  
+  // Keep only digits and + 
+  cleaned = cleaned.replace(/[^\d+]/g, '')
+  
+  // Add + if missing for international numbers (7+ digits)
+  if (!cleaned.startsWith('+') && cleaned.length >= 7) {
+    return '+' + cleaned
+  }
+  
+  return cleaned
+}
+
+// Phone number detection function
+function isPhoneNumber(text: string): boolean {
+  if (!text || typeof text !== 'string') return false
+  
+  // Remove common separators and check if it looks like a phone number
+  const cleaned = text.replace(/[\s\-\(\)\.]/g, '')
+  
+  // Check if it contains mostly digits and phone symbols, and has reasonable length
+  const phonePattern = /^[\+]?[\d]{7,15}$/
+  return phonePattern.test(cleaned)
+}
+
+// Partial extraction function for salvaging individual activities
+function attemptPartialExtraction(text: string, platformOverride?: string | null): { platform: string; activities: any[]; skipped: number } | null {
+  try {
+    let platform = 'unknown'
+    const validActivities: any[] = []
+    let skippedCount = 0
+    
+    // Try to extract platform
+    const platformMatch = text.match(/"platform"\s*:\s*"([^"]+)"/i)
+    if (platformMatch) {
+      platform = platformMatch[1]
+    }
+    
+    // Override platform if provided
+    if (platformOverride) {
+      platform = platformOverride.toLowerCase()
+    }
+    
+    // Find all activity-like objects in the text
+    const activityRegex = /\{\s*"person_name"\s*:\s*"[^"]*"[^}]*\}/g
+    const activityMatches = text.match(activityRegex)
+    
+    if (!activityMatches) {
+      console.log('No activity objects found in partial extraction')
+      return null
+    }
+    
+    console.log(`Found ${activityMatches.length} potential activity objects`)
+    
+    // Try to parse each activity individually
+    for (const activityText of activityMatches) {
+      try {
+        // Clean the activity text
+        let cleanActivity = activityText.trim()
+        
+        // Fix common issues
+        cleanActivity = cleanActivity.replace(/\\'/g, "'")
+        
+        // Try to parse this individual activity
+        const activity = JSON.parse(cleanActivity)
+        
+        // Validate it has required fields
+        if (activity.person_name) {
+          // Apply phone normalization
+          if (activity.phone) {
+            activity.phone = normalizePhoneNumber(activity.phone)
+          }
+          
+          if (activity.person_name && isPhoneNumber(activity.person_name)) {
+            activity.person_name = normalizePhoneNumber(activity.person_name) || activity.person_name
+          }
+          
+          validActivities.push(activity)
+        } else {
+          skippedCount++
+        }
+      } catch (activityParseError) {
+        console.log('Failed to parse individual activity:', activityParseError)
+        skippedCount++
+      }
+    }
+    
+    if (validActivities.length === 0) {
+      console.log('No valid activities extracted in partial mode')
+      return null
+    }
+    
+    return {
+      platform,
+      activities: validActivities,
+      skipped: skippedCount
+    }
+  } catch (error) {
+    console.error('Partial extraction failed:', error)
+    return null
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -54,7 +165,8 @@ export async function POST(request: NextRequest) {
           
           IMPORTANT: 
           - Return ONLY valid JSON, no additional text
-          - Escape all quotes in message content properly
+          - Use \" for quotes inside strings, NEVER use \'
+          - Escape all quotes in message content properly with \"
           - Use null for missing values, not empty strings
           - Keep messages brief to avoid quote issues
           - Identify who sent the last message based on message alignment and platform styling
@@ -97,9 +209,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Clean and parse the JSON response
+    let cleanJson = analysisText.trim()
     try {
       // Clean the response - remove any markdown formatting or extra text
-      let cleanJson = analysisText.trim()
       
       // Remove markdown code blocks if present
       if (cleanJson.includes('```json')) {
@@ -116,7 +228,35 @@ export async function POST(request: NextRequest) {
         cleanJson = cleanJson.substring(jsonStart, jsonEnd)
       }
       
+      // Fix common JSON escape sequence issues
+      cleanJson = cleanJson.replace(/\\'/g, "'")  // Fix invalid \' escape
+      // Removed aggressive quote replacement that was corrupting Unicode characters
+      
+      console.log('Cleaned JSON (first 200 chars):', cleanJson.substring(0, 200))
+      
       const parsedResults = JSON.parse(cleanJson)
+      
+      // Normalize phone numbers in all extracted activities
+      if (parsedResults.activities) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        parsedResults.activities = parsedResults.activities.map((activity: any) => {
+          const normalizedActivity = { ...activity }
+          
+          // Normalize phone field if it exists
+          if (activity.phone) {
+            normalizedActivity.phone = normalizePhoneNumber(activity.phone)
+          }
+          
+          // Normalize person_name if it's a phone number
+          if (activity.person_name && isPhoneNumber(activity.person_name)) {
+            normalizedActivity.person_name = normalizePhoneNumber(activity.person_name)
+            console.log(`Normalized phone in name field: "${activity.person_name}" -> "${normalizedActivity.person_name}"`)
+          }
+          
+          return normalizedActivity
+        })
+        console.log('Phone numbers normalized for', parsedResults.activities.length, 'activities')
+      }
       
       console.log('Parsed results:', parsedResults)
       console.log('Activities found:', parsedResults.activities?.length || 0)
@@ -149,6 +289,92 @@ export async function POST(request: NextRequest) {
     } catch (parseError) {
       console.error('JSON parsing error:', parseError)
       console.error('AI Response that failed to parse:', analysisText)
+      console.error('Cleaned JSON that failed:', cleanJson?.substring(0, 300) || 'undefined')
+      
+      // Try alternative parsing strategies
+      try {
+        // Strategy 1: Try to fix truncated JSON by adding missing closing braces
+        let fixedJson = cleanJson || analysisText
+        const openBraces = (fixedJson.match(/{/g) || []).length
+        const closeBraces = (fixedJson.match(/}/g) || []).length
+        if (openBraces > closeBraces) {
+          fixedJson += '}'.repeat(openBraces - closeBraces)
+          console.log('Attempting to fix truncated JSON...')
+          const parsedResults = JSON.parse(fixedJson)
+          console.log('✅ Successfully parsed with truncation fix')
+          
+          // Continue with normal flow...
+          if (parsedResults.activities) {
+            parsedResults.activities = parsedResults.activities.map((activity: { phone?: string; [key: string]: unknown }) => {
+              const normalizedActivity = { ...activity }
+              
+              if (activity.phone) {
+                normalizedActivity.phone = normalizePhoneNumber(activity.phone as string) || undefined
+              }
+              
+              if (activity.person_name && isPhoneNumber(activity.person_name as string)) {
+                normalizedActivity.person_name = normalizePhoneNumber(activity.person_name as string) || activity.person_name
+                console.log(`Normalized phone in name field: "${activity.person_name}" -> "${normalizedActivity.person_name}"`)
+              }
+              
+              return normalizedActivity
+            })
+            console.log('Phone numbers normalized for', parsedResults.activities.length, 'activities')
+          }
+          
+          const screenshotResult = screenshotOperations.create(
+            file.name,
+            base64,
+            JSON.stringify(parsedResults)
+          )
+          const screenshotId = screenshotResult.lastInsertRowid
+          
+          if (platformOverride) {
+            parsedResults.platform = platformOverride.toLowerCase()
+          }
+          
+          const responseData = {
+            ...parsedResults,
+            screenshotId: screenshotId,
+            totalActivities: parsedResults.activities?.length || 0,
+            message: `${parsedResults.activities?.length || 0} activities extracted for review`
+          }
+          
+          return NextResponse.json(responseData)
+        }
+      } catch (retryError) {
+        console.error('Alternative parsing also failed:', retryError)
+      }
+      
+      // Strategy 2: Try partial extraction of individual activities
+      try {
+        console.log('Attempting partial activity extraction...')
+        const partialResults = attemptPartialExtraction(cleanJson || analysisText, platformOverride)
+        
+        if (partialResults && partialResults.activities.length > 0) {
+          console.log(`✅ Partial extraction successful: ${partialResults.activities.length} activities recovered`)
+          
+          // Create screenshot record for partial results
+          const screenshotResult = screenshotOperations.create(
+            file.name,
+            base64,
+            JSON.stringify(partialResults)
+          )
+          const screenshotId = screenshotResult.lastInsertRowid
+          
+          const responseData = {
+            ...partialResults,
+            screenshotId: screenshotId,
+            totalActivities: partialResults.activities.length,
+            message: `${partialResults.activities.length} activities extracted (partial success)`,
+            warning: partialResults.skipped > 0 ? `${partialResults.skipped} activities skipped due to parsing issues` : undefined
+          }
+          
+          return NextResponse.json(responseData)
+        }
+      } catch (partialError) {
+        console.error('Partial extraction also failed:', partialError)
+      }
       
       // If JSON parsing fails, try to handle common AI responses
       if (analysisText.toLowerCase().includes("sorry") || 

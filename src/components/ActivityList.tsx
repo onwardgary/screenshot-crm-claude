@@ -10,6 +10,7 @@ import {
   Phone, 
   Image,
   ArrowRight,
+  ArrowLeftRight,
   Users,
   Activity
 } from 'lucide-react'
@@ -26,6 +27,7 @@ interface Activity {
   temperature?: 'hot' | 'warm' | 'cold'
   notes?: string
   is_group_chat?: boolean
+  is_two_way_communication?: boolean
   contact_id?: number // Links to organized contact
   created_at: string
   updated_at?: string
@@ -37,6 +39,24 @@ interface ActivityListProps {
   loading?: boolean
   onSelectionChange?: (selectedIds: number[]) => void
   selectedIds?: number[]
+}
+
+const getCommunicationBadge = (hasTwoWay?: boolean) => {
+  if (hasTwoWay) {
+    return (
+      <Badge className="bg-green-100 text-green-800 flex items-center gap-1">
+        <ArrowLeftRight className="w-3 h-3" />
+        Two-Way
+      </Badge>
+    )
+  } else {
+    return (
+      <Badge className="bg-gray-100 text-gray-800 flex items-center gap-1">
+        <ArrowLeftRight className="w-3 h-3" />
+        One-Way
+      </Badge>
+    )
+  }
 }
 
 export default function ActivityList({ organized = false, activities, loading = false, onSelectionChange, selectedIds = [] }: ActivityListProps) {
@@ -170,6 +190,7 @@ export default function ActivityList({ organized = false, activities, loading = 
                 </div>
                 <div className="flex items-center space-x-2">
                   {getTemperatureBadgeWithText(activity.temperature)}
+                  {getCommunicationBadge(activity.is_two_way_communication)}
                   {activity.is_group_chat && (
                     <Badge variant="secondary" className="bg-orange-100 text-orange-800">
                       <Users className="h-3 w-3 mr-1" />

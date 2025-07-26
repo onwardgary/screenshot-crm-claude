@@ -239,6 +239,78 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
     }
   }, [statusFilter, filters, toast, pagination.limit])
 
+  // Function to refresh all loaded contacts without resetting pagination
+  const refreshAllContacts = useCallback(async () => {
+    if (pagination.page === 1) {
+      // If we're only on page 1, just refresh normally
+      fetchContacts(1, false)
+      return
+    }
+
+    setLoading(true)
+    const allContacts: Contact[] = []
+    
+    try {
+      // Fetch all pages from 1 to current page
+      for (let page = 1; page <= pagination.page; page++) {
+        const params = new URLSearchParams()
+        params.append('page', page.toString())
+        params.append('limit', pagination.limit.toString())
+        
+        // Add legacy status filter for backward compatibility
+        if (statusFilter) {
+          params.append('status', statusFilter)
+        }
+        
+        // Add new filter parameters
+        if (filters) {
+          if (filters.search) {
+            params.append('search', filters.search)
+            params.append('searchType', filters.searchType)
+          }
+          if (filters.relationshipStatus.length > 0) params.append('relationshipStatus', filters.relationshipStatus.join(','))
+          if (filters.relationshipType.length > 0) params.append('relationshipType', filters.relationshipType.join(','))
+          if (filters.platforms.length > 0) params.append('platforms', filters.platforms.join(','))
+          if (filters.temperature.length > 0) params.append('temperature', filters.temperature.join(','))
+          if (filters.dateRange && filters.dateRange !== 'all') params.append('dateRange', filters.dateRange)
+          if (filters.hasTwoWay && filters.hasTwoWay !== 'all') params.append('hasTwoWay', filters.hasTwoWay)
+          if (filters.hasPhone && filters.hasPhone !== 'all') params.append('hasPhone', filters.hasPhone)
+          if (filters.isNew !== null) params.append('isNew', filters.isNew.toString())
+          if (filters.isActive !== null) params.append('isActive', filters.isActive.toString())
+          if (filters.sort) params.append('sort', filters.sort)
+          if (filters.order) params.append('order', filters.order)
+        }
+        
+        const url = `/api/contacts?${params.toString()}`
+        const response = await fetch(url)
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+        
+        const data = await response.json()
+        if (data && data.contacts && Array.isArray(data.contacts)) {
+          allContacts.push(...data.contacts)
+          // Update pagination with latest data (from the last page fetched)
+          if (page === pagination.page) {
+            setPagination(data.pagination)
+          }
+        }
+      }
+      
+      setContacts(allContacts)
+    } catch (error) {
+      console.error('Failed to refresh all contacts:', error)
+      toast({
+        title: "Error refreshing contacts", 
+        description: "Failed to refresh contacts. Please reload the page.",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [statusFilter, filters, toast, pagination.limit, pagination.page, fetchContacts])
+
   useEffect(() => {
     fetchContacts()
   }, [fetchContacts, filters, refreshTrigger]) // Add refreshTrigger as dependency
@@ -289,7 +361,7 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
         description: "Contact has been marked as a customer"
       })
       
-      fetchContacts() // Refresh data
+      refreshAllContacts() // Refresh all loaded contacts
     } catch (error) {
       console.error('Failed to mark as customer:', error)
       toast({
@@ -319,7 +391,7 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
         description: "Contact has been changed back to prospect"
       })
       
-      fetchContacts() // Refresh data
+      refreshAllContacts() // Refresh all loaded contacts
     } catch (error) {
       console.error('Failed to remove customer status:', error)
       toast({
@@ -501,8 +573,8 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
     // Exit edit mode
     setEditingContactId(null)
     
-    // Refresh contacts to get updated data from server
-    fetchContacts()
+    // Refresh all loaded contacts to get updated data from server
+    refreshAllContacts()
   }
 
 
@@ -580,14 +652,16 @@ export default function ContactsList({ statusFilter, filters, onSelectionChange,
                 /* View Mode */
                 <div onClick={() => handleContactClick(contact.id!)}>
                   {/* Header Row */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3 flex-1">
-                      <Checkbox
-                        checked={selectedContacts.has(contact.id!)}
-                        onCheckedChange={() => toggleSelection(contact.id!)}
-                        aria-label={`Select ${contact.name}`}
-                        onClick={(e) => e.stopPropagation()}
-                      />
+                  <div className="flex justify-between mb-3">
+                    <div className="flex gap-3 flex-1">
+                      <div className="flex items-start pt-1">
+                        <Checkbox
+                          checked={selectedContacts.has(contact.id!)}
+                          onCheckedChange={() => toggleSelection(contact.id!)}
+                          aria-label={`Select ${contact.name}`}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
                       <div className="flex-1">
                         <div className="text-lg font-semibold text-slate-900">
                           {contact.name}

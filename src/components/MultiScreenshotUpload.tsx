@@ -46,6 +46,8 @@ export default function MultiScreenshotUpload() {
   const [files, setFiles] = useState<UploadFile[]>([])
   const [dragActive, setDragActive] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [extractionResults, setExtractionResults] = useState<null | { activities: any[], screenshots: any[], totalExtracted: number }>(null)
 
   const generateFileId = () => Math.random().toString(36).substring(2) + Date.now().toString(36)
 
@@ -186,7 +188,8 @@ export default function MultiScreenshotUpload() {
         description: `Found ${combinedResults.activities.length} activities from ${results.length} screenshots.`,
       })
       
-      router.push('/analyze/batch')
+      // Store results in state instead of auto-navigating
+      setExtractionResults(combinedResults)
     }
 
     setIsProcessing(false)
@@ -416,17 +419,28 @@ export default function MultiScreenshotUpload() {
               ))}
             </div>
             
-            {/* Review button */}
-            {successfulFiles > 0 && (
-              <div className="mt-6 flex justify-center">
-                <Button 
-                  onClick={() => router.push('/analyze/batch')}
-                  size="lg"
-                  className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700"
-                >
-                  <Eye className="w-4 h-4 mr-2" />
-                  Review {totalActivities} Activities
-                </Button>
+            {/* Continue to Review button - appears when extraction is complete */}
+            {extractionResults && (
+              <div className="mt-6 text-center">
+                <div className="p-4 bg-green-50 rounded-lg border border-green-200 mb-4">
+                  <div className="flex items-center justify-center mb-2">
+                    <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+                    <h3 className="text-lg font-semibold text-green-800">
+                      Analysis Complete!
+                    </h3>
+                  </div>
+                  <p className="text-green-700 mb-4">
+                    Found {extractionResults.activities.length} activities from {extractionResults.screenshots.length} screenshots
+                  </p>
+                  <Button 
+                    onClick={() => router.push('/analyze/batch')}
+                    size="lg"
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    Continue to Review →
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>

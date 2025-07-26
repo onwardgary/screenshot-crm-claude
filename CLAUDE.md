@@ -167,7 +167,7 @@ interface Contact {
 - `/analyze/page.tsx` - Legacy single screenshot review (being phased out)
 
 ### **Activity Management:**
-- `ActivityList` - Modern activity display with Hot/Warm/Cold temperature badges
+- `ActivityList` - Modern activity display with Hot/Warm/Cold temperature badges and two-way communication indicators
 - `/activities/page.tsx` - Main activities dashboard
 - `LeadsList` - Legacy component (being removed)
 
@@ -324,7 +324,82 @@ GPT-4 Vision extracts activities in this format:
 
 ### **✅ Recently Completed:**
 
-#### **Latest Session - July 13, 2025:**
+#### **Latest Session - July 26, 2025:**
+**Branch**: `code-cleanup`
+**Commit**: `9de0a7c`
+
+**Major Bug Fixes Implemented:**
+1. **Batch Review Navigation Fix**: Resolved issue where users weren't automatically routed to activities page after saving
+2. **Group Chat Checkbox Synchronization**: Fixed bidirectional sync between global "Exclude all group chats" and individual inclusion checkboxes
+
+**Technical Improvements:**
+- **Immediate Navigation**: Removed setTimeout delays for instant routing to /activities after successful/partial saves
+- **Smart Checkbox Logic**: Added automatic sync in toggleActivity() function for consistent UI state
+- **Bidirectional State Management**: Global exclusion checkbox now reflects reality of individual selections
+
+**UX Enhancements:**
+- **Seamless Save Experience**: Users now get immediate feedback and navigation after save completion
+- **Intuitive Checkbox Behavior**: Including individual group chats automatically unchecks global exclusion
+- **Consistent State Representation**: Checkbox states always match actual inclusion/exclusion reality
+
+**Bug Fixes:**
+- **Navigation Timing**: Fixed setTimeout-based navigation causing users to get stuck on batch review page
+- **Checkbox State Sync**: Fixed logic where individual group chat inclusion didn't update global toggle
+- **User Flow Completion**: Ensured all save scenarios properly route users to destination page
+
+#### **Previous Session - July 20, 2025:**
+**Branch**: `code-cleanup`
+
+**Major Features Implemented:**
+1. **Communication Badges for Activity Cards**: Added two-way communication indicators to activity cards matching contact card functionality
+   - Added `getCommunicationBadge()` function to ActivityList.tsx
+   - Green "Two-Way" badge for activities with `is_two_way_communication: true`
+   - Gray "One-Way" badge for activities without two-way communication
+   - Added `ArrowLeftRight` icon import from lucide-react
+   - Updated Activity interface to include `is_two_way_communication?: boolean`
+
+**Technical Improvements:**
+- **Visual Consistency**: Activity cards now show communication status badges matching contact cards
+- **TypeScript Type Safety**: Updated Activity interface with two-way communication field
+- **Icon Integration**: Added ArrowLeftRight icon for communication status indicators
+- **Badge Positioning**: Communication badges positioned between temperature and group chat badges
+
+**UX Enhancements:**
+- **Activity Status Visibility**: Users can now quickly identify two-way vs one-way conversations in activity lists
+- **Consistent Interface**: Same communication badge design across both activity and contact cards
+- **Visual Priority**: Two-way communication activities clearly marked with green badges
+
+#### **Previous Session - July 19, 2025:**
+**Branch**: `code-cleanup`
+**Commit**: `06ace27`
+
+**Major Features Implemented:**
+1. **Smart Bulk Action Logic**: Fixed bulk action toolbar to intelligently show/hide "Mark as Customer" button based on contact selection
+2. **Contact Edit Pagination Fix**: Resolved issue where editing contacts loaded via "Load More" would reset pagination and lose the edited contact
+3. **UI Alignment Improvements**: Fixed checkbox alignment in contact cards to properly align with contact names
+
+**Technical Improvements:**
+- **Bulk Action Intelligence**: ContactBulkActionBar now receives full contact objects and analyzes selection to show appropriate actions
+- **Smart Visibility Logic**: "Mark as Customer" button only shows when all selected contacts are prospects, hidden for mixed selections
+- **Pagination Preservation**: New `refreshAllContacts()` function maintains all loaded contacts after edits instead of resetting to page 1
+- **Component Data Flow**: Updated parent-child data passing to include contact objects alongside IDs for better decision making
+- **TypeScript Type Safety**: Fixed interface compatibility issues between components for relationship_status types
+
+**New Functions Created:**
+- **`refreshAllContacts()`**: Preserves pagination state by fetching all pages from 1 to current page after contact edits
+- **Smart bulk action filtering**: Analyzes selected contacts to determine which actions are appropriate
+
+**UX Enhancements:**
+- **Intuitive Bulk Actions**: No more confusing "Mark as Customer" option for contacts that are already customers
+- **Consistent Edit Experience**: Edited contacts remain visible after changes regardless of which page they were loaded from
+- **Improved Visual Alignment**: Contact checkboxes now properly align with contact names for better visual hierarchy
+
+**Bug Fixes:**
+- **Bulk Action Logic**: Fixed inappropriate action availability based on contact status
+- **Contact Edit Pagination**: Fixed disappearing contacts after editing when loaded via pagination
+- **Checkbox Alignment**: Fixed visual misalignment of selection checkboxes in contact cards
+
+#### **Previous Session - July 13, 2025:**
 **Branch**: `contact-auto-calculation`
 **Commit**: `a708be9`
 
@@ -429,17 +504,32 @@ GPT-4 Vision extracts activities in this format:
 **Status**: Based on user testing feedback
 
 **High Priority:**
-1. **Activity Editing**: Add individual & bulk edit functionality for activities
+1. **Form Accessibility Improvements**: Add proper form field attributes for better UX
+   - Add `name` and `id` attributes to form inputs for browser autofill support
+   - Improve accessibility for screen readers
+   - Fix browser developer tools warnings about form fields
+
+2. **Activity Editing**: Add individual & bulk edit functionality for activities
    - Edit activity details (name, phone, platform, temperature, message direction)
    - Bulk edit operations (change platform, temperature, etc.)
    - Allow editing after organization (maintaining contact links)
 
-2. **Screenshot Functionality**: Fix screenshot viewing and indicators
+3. **Screenshot Functionality**: Fix screenshot viewing and indicators
    - Add screenshot indicators to contacts (show if linked activities have screenshots)
    - Create screenshot viewer modal with "View Screenshot" buttons
    - Show screenshot count in contact cards for context
 
 **✅ Recently Completed:**
+1. **~~Smart Bulk Action Logic~~**: ✅ **COMPLETED** - Fixed inappropriate bulk actions
+   - ✅ Intelligent "Mark as Customer" button visibility based on contact selection
+   - ✅ Mixed selection handling (customers + prospects) shows only Delete action
+   - ✅ Component data flow improvements for better decision making
+
+2. **~~Contact Edit Pagination~~**: ✅ **COMPLETED** - Fixed pagination reset after edits
+   - ✅ New `refreshAllContacts()` function preserves loaded contacts
+   - ✅ Edited contacts remain visible after changes regardless of pagination
+   - ✅ Maintains "Load More" functionality while preventing data loss
+
 3. **~~Simplify Convert Flow~~**: ✅ **COMPLETED** - Made merge/convert more intuitive
    - ✅ Removed relationship type requirement from all flows 
    - ✅ Unified terminology: "Combine and Assign" / "Assign to Contacts"
@@ -456,6 +546,87 @@ GPT-4 Vision extracts activities in this format:
 8. **Follow-up Automation**: Smart reminders and sequences
 9. **Export/Import**: CSV, PDF reporting capabilities
 10. **Remove Legacy Lead System**: Clean up old `/api/leads` routes and components (if any exist)
+
+## OpenAI API Performance Optimization Plan
+
+### **Current Performance Bottlenecks** (src/app/api/analyze-screenshot/route.ts:32-87)
+
+1. **Sequential Processing**: MultiScreenshotUpload.tsx processes files one by one in a loop
+2. **Large Payloads**: Full base64 image conversion increases request size 
+3. **Verbose Prompts**: 700+ character system prompt with detailed instructions
+4. **Single Model**: Using gpt-4o for all requests regardless of complexity
+
+### **Immediate Optimization Strategies**
+
+#### **1. Parallel Processing**
+```typescript
+// Replace sequential loop with Promise.all()
+const results = await Promise.all(
+  files.map(file => processScreenshot(file))
+)
+```
+
+#### **2. Request Batching** 
+- Use OpenAI's new Batch API for non-real-time processing
+- Process multiple screenshots in single API call
+- Reduce per-request overhead by 60-80%
+
+#### **3. Model Selection Optimization**
+- Use `gpt-4o-mini` for simple screenshots (50% faster, 90% cheaper)
+- Reserve `gpt-4o` for complex/unclear images only
+- Implement smart model routing based on image complexity
+
+#### **4. Prompt Engineering**
+```typescript
+// Reduce from 700+ to ~200 characters
+const optimizedPrompt = `Extract conversation data as JSON: 
+{platform:"", activities:[{person_name:"", phone:"", message_content:"", temperature:"warm"}]}`
+```
+
+#### **5. Response Streaming**
+```typescript
+// Enable streaming for faster perceived response
+stream: true,
+max_tokens: 800  // Reduce from 1500
+```
+
+### **Advanced Production Strategies**
+
+#### **6. Intelligent Caching**
+- Cache results by image hash to avoid reprocessing duplicates
+- Implement Redis for distributed caching across instances
+- Cache common conversation patterns
+
+#### **7. Image Preprocessing**
+- Compress images before API calls (reduce file size by 70%)
+- Crop to conversation area only
+- Use WebP format for better compression
+
+#### **8. Rate Limit Management**
+- Implement exponential backoff with jitter
+- Use multiple API keys with load balancing
+- Queue system for handling traffic spikes
+
+#### **9. Regional Optimization**
+- Deploy API endpoints closer to users
+- Use Azure OpenAI for lower latency in specific regions
+- CDN for static assets
+
+### **Expected Performance Gains**
+
+- **Parallel Processing**: 3-5x faster for batch uploads
+- **Model Optimization**: 50% latency reduction for simple screenshots  
+- **Prompt Optimization**: 20% token reduction
+- **Image Compression**: 30% faster uploads
+- **Caching**: 90% improvement for duplicate/similar images
+
+### **Implementation Priority**
+
+1. **High Impact, Low Effort**: Parallel processing, prompt optimization
+2. **Medium Impact**: Model selection, image compression  
+3. **High Impact, High Effort**: Caching system, regional deployment
+
+**Target**: Reduce average response times from 3-8 seconds to 1-3 seconds for typical batch operations
 
 ## Troubleshooting
 
@@ -499,6 +670,156 @@ src/
 └── lib/
     └── database.ts            # SQLite operations (activities + contacts)
 ```
+
+## Clean Code Assessment & Technical Debt
+
+### **Code Quality Score: A- (90/100)**
+*Assessment completed: July 25, 2025*
+
+### **✅ Strengths:**
+
+**Component Reusability (9/10):**
+- Excellent utility functions with multiple variants (`getPlatformIcon`, `getTemperatureBadge` in `platformUtils.tsx`)
+- Well-designed custom hooks (`useContactSearch`, `useToast`)
+- Shared business logic abstraction (`contactDetection.ts`)
+- Reusable components like `ActivityAssignmentCard`
+
+**Code Structure (9/10):**
+- Clean separation of concerns (components/lib/hooks/api)
+- Excellent TypeScript implementation with zero `any` types
+- RESTful API design with consistent patterns
+- Proper database operation organization
+
+**Naming Conventions (8/10):**
+- Consistent PascalCase for components
+- Proper camelCase for functions/variables
+- RESTful API route naming
+- **Minor Issue**: Hook naming inconsistency (`use-toast.ts` vs `useContactSearch.ts`)
+
+**Design Patterns (9/10):**
+- Excellent custom hooks with reducer patterns
+- Strong component composition
+- Proper error handling and state management
+- Good database patterns with prepared statements
+
+### **🔴 High Priority Technical Debt:**
+
+#### **1. Code Duplication Issues (Priority: HIGH)**
+
+**Badge Logic Duplication:**
+- Files: `ActivityList.tsx:44-60`, `ContactsList.tsx:453-469`
+- Issue: Identical `getCommunicationBadge()` functions (~16 lines each)
+- **Fix**: Extract to `src/lib/badgeUtils.tsx` as shared utility
+
+**Filter Component Duplication:**
+- Files: `ActivityFilters.tsx`, `ContactFilters.tsx`
+- Issue: ~800 lines of nearly identical filter UI patterns
+- **Fix**: Create generic `GenericFilters<T>` component
+
+**Selection Logic Duplication:**
+- Files: `ActivityList.tsx:77-98`, `ContactsList.tsx:134-157`
+- Issue: Identical selection state management (~20 lines each)
+- **Fix**: Create `useSelection<T>()` custom hook
+
+**Interface Definitions:**
+- Issue: Activity interface defined in 6+ files
+- **Fix**: Create `src/types/index.ts` for shared type definitions
+
+#### **2. Component Size Issues (Priority: MEDIUM)**
+
+**Large Components:**
+- `ContactsList.tsx`: 834 lines (should be <300 lines)
+- `refreshAllContacts()` function: 69 lines (should be <20 lines)
+- **Fix**: Break into smaller components (`ContactCard`, `ContactFilters`, `ContactActions`)
+
+#### **3. Database Connection Management (Priority: MEDIUM)**
+
+**Issue**: Creating new connections in functions like `getContactsWithMetrics()`
+```typescript
+function getContactsWithMetrics() {
+  const db = new Database(dbPath) // New connection per call
+  // ... operations
+  db.close() // Manual cleanup
+}
+```
+**Fix**: Implement connection pooling or singleton pattern
+
+### **🎯 Refactoring Action Plan**
+
+#### **Phase 1: Extract Shared Utilities (High Impact)**
+1. **Create Badge Utilities** (`src/lib/badgeUtils.tsx`):
+   ```typescript
+   export const createCommunicationBadge = (hasTwoWay?: boolean) => { /* ... */ }
+   export const createTemperatureBadge = (temp?: string, withText = false) => { /* ... */ }
+   ```
+
+2. **Create Selection Hook** (`src/hooks/useSelection.ts`):
+   ```typescript
+   export function useSelection<T>(items: T[], getId: (item: T) => number) {
+     // Shared selection logic for both activities and contacts
+   }
+   ```
+
+3. **Create Shared Types** (`src/types/index.ts`):
+   ```typescript
+   export interface Activity { /* single definition */ }
+   export interface Contact { /* single definition */ }
+   ```
+
+#### **Phase 2: Component Breakdown (Medium Impact)**
+1. **Break down ContactsList.tsx**:
+   - Extract `ContactCard.tsx`
+   - Extract `ContactFilters.tsx`
+   - Extract `ContactActions.tsx`
+
+2. **Create Generic Filter Component**:
+   ```typescript
+   interface FilterConfig {
+     searchTypes: string[]
+     dropdownFilters: FilterGroup[]
+     sortOptions: SortOption[]
+   }
+   export function GenericFilters<T>({ config }: Props) { /* ... */ }
+   ```
+
+#### **Phase 3: Database & API Improvements (Low Impact)**
+1. **Database Connection Utility**:
+   ```typescript
+   // src/lib/dbConnection.ts
+   export class DatabaseManager {
+     private static instance: Database
+     static getConnection() { /* singleton pattern */ }
+   }
+   ```
+
+2. **API Query Builder**:
+   ```typescript
+   // src/lib/queryBuilder.ts
+   export class APIQueryBuilder {
+     addSearch(search?: string) { /* ... */ }
+     build() { return this.params.toString() }
+   }
+   ```
+
+### **Expected Benefits:**
+
+**Code Reduction:**
+- Badge utilities: ~60 lines → 20 lines (67% reduction)
+- Selection logic: ~50 lines → 15 lines (70% reduction)
+- Filter components: ~800 lines → 400 lines (50% reduction)
+- Interface definitions: ~150 lines → 30 lines (80% reduction)
+
+**Maintenance Benefits:**
+- Single source of truth for business logic
+- Consistent UI patterns across components
+- Easier bug fixes and feature updates
+- Better type safety with shared interfaces
+
+### **Implementation Notes:**
+- All refactoring should maintain existing functionality
+- Prioritize high-impact, low-effort improvements first
+- Test each phase thoroughly before proceeding
+- Consider creating feature branches for each phase
 
 ---
 

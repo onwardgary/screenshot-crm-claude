@@ -31,6 +31,13 @@ try {
   // Column already exists
 }
 
+// Add two-way communication column to existing tables
+try {
+  db.exec(`ALTER TABLE activities ADD COLUMN is_two_way_communication BOOLEAN DEFAULT 0`)
+} catch {
+  // Column already exists
+}
+
 // Create contacts table (organized people/relationships)
 db.exec(`
   CREATE TABLE IF NOT EXISTS contacts (
@@ -102,6 +109,7 @@ export interface Activity {
   temperature?: 'hot' | 'warm' | 'cold'
   notes?: string
   is_group_chat?: boolean
+  is_two_way_communication?: boolean
   contact_id?: number // Links to organized contact
   created_at?: string
   updated_at?: string
@@ -139,8 +147,8 @@ export const activityOperations = {
   // Create new activity from screenshot
   create: (activity: Omit<Activity, 'id'>) => {
     const stmt = db.prepare(`
-      INSERT INTO activities (screenshot_id, person_name, phone, platform, message_content, message_from, timestamp, temperature, notes, is_group_chat, contact_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO activities (screenshot_id, person_name, phone, platform, message_content, message_from, timestamp, temperature, notes, is_group_chat, is_two_way_communication, contact_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     return stmt.run(
       activity.screenshot_id || null,
@@ -153,6 +161,7 @@ export const activityOperations = {
       activity.temperature || 'warm',
       activity.notes || null,
       activity.is_group_chat ? 1 : 0,
+      activity.is_two_way_communication ? 1 : 0,
       activity.contact_id || null
     )
   },
